@@ -3,11 +3,13 @@ Bigstep support libraries for hadoop.
 
 This is usefull if you want to be able to interact with datasets stored in Bigstep's Datalake. 
 
-To use, first copy the jar to :
-1. Vanilla Hadoop : hadoop-2.7.x/share/hadoop/tools/
-2. CDH: /opt/cloudera/parcels/CDH/lib/hadoop/
+To use, first copy the jar to:
 
-first add the following to core-site.xml:
+1.Vanilla Hadoop  **hadoop-2.7.x/share/hadoop/tools/**
+
+2.CDH  **/opt/cloudera/parcels/CDH/lib/hadoop/**
+
+first add the following to **core-site.xml**:
 
 ```xml
 <property>
@@ -43,7 +45,7 @@ Then you can use regular hadoop commands like distcp:
 hadoop distcp hdfs://localhost/user/hdfs/test dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dlzzz
 ```
 
-To compile copy the directory into the hadoop-2.7.1-src/hadoop-tools/ directory:
+To compile copy the directory into the **hadoop-2.7.1-src/hadoop-tools/** directory:
 ```bash
 cd hadoop-2.7.1-src/hadoop-tools
 git clone <this-repo>
