@@ -14,7 +14,7 @@ first add the following to **core-site.xml**:
 ```xml
 <property>
   <name>fs.dl.impl</name>
-  <value>org.apache.hadoop.fs.dl.DLFileSystem</value>
+  <value>org.apache.hadoop.fs.dl.DLFileSystemWF</value>
 </property>
 
 <property>

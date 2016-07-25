@@ -1,16 +1,16 @@
 package org.apache.hadoop.fs.dl;
 
 /**
- * res * Licensed to the Apache Software Foundation (ASF) under one
+ * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,191 +18,134 @@ package org.apache.hadoop.fs.dl;
  * limitations under the License.
  */
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import com.google.common.collect.Maps;
+import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
-import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.hadoop.hdfs.DFSConfigKeys;
-import org.apache.hadoop.hdfs.DFSUtil;
-import org.apache.hadoop.hdfs.HAUtil;
-import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
-import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
-import org.apache.hadoop.hdfs.web.ByteRangeInputStream;
-import org.apache.hadoop.hdfs.web.URLConnectionFactory;
-import org.apache.hadoop.hdfs.web.WebHdfsFileSystem;
-import org.apache.hadoop.hdfs.web.resources.*;
-import org.apache.hadoop.hdfs.web.resources.HttpOpParam.Op;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.retry.RetryPolicies;
-import org.apache.hadoop.io.retry.RetryPolicy;
-import org.apache.hadoop.io.retry.RetryUtils;
-import org.apache.hadoop.ipc.RemoteException;
-import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.security.AccessControlException;
-import org.apache.hadoop.security.SecurityUtil;
-import org.apache.hadoop.security.authentication.client.AuthenticatedURL;
-import org.apache.hadoop.security.authentication.client.AuthenticationException;
-import org.apache.hadoop.security.token.SecretManager;
+import org.apache.hadoop.hdfs.web.resources.OffsetParam;
+import org.apache.hadoop.lib.wsrs.EnumSetParam;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
-import org.apache.hadoop.security.token.TokenSelector;
-import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenSelector;
+import org.apache.hadoop.security.token.delegation.web.DelegationTokenAuthenticatedURL;
+import org.apache.hadoop.security.token.delegation.web.DelegationTokenAuthenticator;
+import org.apache.hadoop.security.token.delegation.web.KerberosDelegationTokenAuthenticator;
+import org.apache.hadoop.util.HttpExceptionUtils;
 import org.apache.hadoop.util.Progressable;
-import org.codehaus.jackson.map.ObjectMapper;
+import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.StringUtils;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
-import javax.ws.rs.core.MediaType;
-import java.io.BufferedOutputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.*;
 import java.security.Principal;
 import java.security.PrivilegedExceptionAction;
+import java.text.MessageFormat;
 import java.util.*;
 
-/** A FileSystem for HDFS over the web. */
+/**
+ * HttpFSServer implementation of the FileSystemAccess FileSystem.
+ * <p/>
+ * This implementation allows a user to access HDFS over HTTP via a HttpFSServer server.
+ */
+@InterfaceAudience.Private
 public class DLFileSystem extends FileSystem
-        implements DelegationTokenRenewer.Renewable, TokenAspect.TokenManagementDelegator {
-    public static final Log LOG = LogFactory.getLog(WebHdfsFileSystem.class);
-    /** File System URI: {SCHEME}://namenode:port/path/to/file */
-    public static final String SCHEME = "webhdfs";
-    /** WebHdfs version. */
-    public static final int VERSION = 1;
-    /** Http URI: http://namenode:port/{PATH_PREFIX}/path/to/file */
-    public static final String PATH_PREFIX = "/" + SCHEME + "/v" + VERSION;
-    /** Delegation token kind */
-    public static final Text TOKEN_KIND = new Text("WEBHDFS delegation");
-    @VisibleForTesting
-    public static final String CANT_FALLBACK_TO_INSECURE_MSG =
-            "The client is configured to only allow connecting to secure cluster";
+        implements DelegationTokenRenewer.Renewable {
+
+    public static final String SERVICE_NAME = DLFileSystemUtils.SERVICE_NAME;
+
+    public static final String SERVICE_VERSION = DLFileSystemUtils.SERVICE_VERSION;
+
+    public static final String SCHEME = "dl";
+
+    public static final String OP_PARAM = "op";
+    public static final String DO_AS_PARAM = "doas";
+    public static final String OVERWRITE_PARAM = "overwrite";
+    public static final String REPLICATION_PARAM = "replication";
+    public static final String BLOCKSIZE_PARAM = "blocksize";
+    public static final String PERMISSION_PARAM = "permission";
+    public static final String ACLSPEC_PARAM = "aclspec";
+    public static final String DESTINATION_PARAM = "destination";
+    public static final String RECURSIVE_PARAM = "recursive";
+    public static final String SOURCES_PARAM = "sources";
+    public static final String OWNER_PARAM = "owner";
+    public static final String GROUP_PARAM = "group";
+    public static final String MODIFICATION_TIME_PARAM = "modificationtime";
+    public static final String ACCESS_TIME_PARAM = "accesstime";
+    public static final String XATTR_NAME_PARAM = "xattr.name";
+    public static final String XATTR_VALUE_PARAM = "xattr.value";
+    public static final String XATTR_SET_FLAG_PARAM = "flag";
+    public static final String XATTR_ENCODING_PARAM = "encoding";
+
+    public static final Short DEFAULT_PERMISSION = 0755;
+    public static final String ACLSPEC_DEFAULT = "";
+
+    public static final String RENAME_JSON = "boolean";
+
+    public static final String DELETE_JSON = "boolean";
+
+    public static final String MKDIRS_JSON = "boolean";
+
+    public static final String HOME_DIR_JSON = "Path";
+
+    public static final String SET_REPLICATION_JSON = "boolean";
+
+    public static final String UPLOAD_CONTENT_TYPE = "application/octet-stream";
+    public static final String FILE_STATUSES_JSON = "FileStatuses";
+    public static final String FILE_STATUS_JSON = "FileStatus";
+    public static final String PATH_SUFFIX_JSON = "pathSuffix";
+    public static final String TYPE_JSON = "type";
+    public static final String LENGTH_JSON = "length";
+    public static final String OWNER_JSON = "owner";
+    public static final String GROUP_JSON = "group";
+    public static final String PERMISSION_JSON = "permission";
+    public static final String ACCESS_TIME_JSON = "accessTime";
+    public static final String MODIFICATION_TIME_JSON = "modificationTime";
+    public static final String BLOCK_SIZE_JSON = "blockSize";
+    public static final String REPLICATION_JSON = "replication";
+    public static final String XATTRS_JSON = "XAttrs";
+    public static final String XATTR_NAME_JSON = "name";
+    public static final String XATTR_VALUE_JSON = "value";
+    public static final String XATTRNAMES_JSON = "XAttrNames";
+    public static final String FILE_CHECKSUM_JSON = "FileChecksum";
+    public static final String CHECKSUM_ALGORITHM_JSON = "algorithm";
+    public static final String CHECKSUM_BYTES_JSON = "bytes";
+    public static final String CHECKSUM_LENGTH_JSON = "length";
+    public static final String CONTENT_SUMMARY_JSON = "ContentSummary";
+    public static final String CONTENT_SUMMARY_DIRECTORY_COUNT_JSON = "directoryCount";
+    public static final String CONTENT_SUMMARY_FILE_COUNT_JSON = "fileCount";
+    public static final String CONTENT_SUMMARY_LENGTH_JSON = "length";
+    public static final String CONTENT_SUMMARY_QUOTA_JSON = "quota";
+    public static final String CONTENT_SUMMARY_SPACE_CONSUMED_JSON = "spaceConsumed";
+    public static final String CONTENT_SUMMARY_SPACE_QUOTA_JSON = "spaceQuota";
+    public static final String ACL_STATUS_JSON = "AclStatus";
+    public static final String ACL_STICKY_BIT_JSON = "stickyBit";
+    public static final String ACL_ENTRIES_JSON = "entries";
+    public static final String ACL_BIT_JSON = "aclBit";
+    public static final int HTTP_TEMPORARY_REDIRECT = 307;
+    private static final String HTTP_GET = "GET";
+    private static final String HTTP_PUT = "PUT";
+    private static final String HTTP_POST = "POST";
+    private static final String HTTP_DELETE = "DELETE";
     private static final String OFFSET_PARAM_PREFIX = OffsetParam.NAME + "=";
-    private final String KERBEROS_PRINCIPAL_CONFIG_NAME = "fs.dl.impl.kerberosPrincipal";
-    private final String KERBEROS_KEYTAB_CONFIG_NAME = "fs.dl.impl.kerberosKeytab";
-    private final String KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
-
-    /** Default connection factory may be overridden in tests to use smaller timeout values */
-    protected URLConnectionFactory connectionFactory;
-    protected Text tokenServiceName;
-    TokenSelector<DelegationTokenIdentifier> tokenSelector =
-            new AbstractDelegationTokenSelector<DelegationTokenIdentifier>(getTokenKind()) {
-            };
-    private boolean canRefreshDelegationToken;
-
-
-    private KerberosIdentity kerberosIdentity;
-
+    private static final String KERBEROS_PRINCIPAL_CONFIG_NAME = "fs.dl.impl.kerberosPrincipal";
+    private static final String KERBEROS_KEYTAB_CONFIG_NAME = "fs.dl.impl.kerberosKeytab";
+    private static final String KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
+    private DelegationTokenAuthenticatedURL authURL;
+    private DelegationTokenAuthenticatedURL.Token authToken =
+            new DelegationTokenAuthenticatedURL.Token();
     private URI uri;
-    private Token<?> delegationToken;
-    private RetryPolicy retryPolicy = null;
     private Path workingDir;
-    private InetSocketAddress nnAddrs[];
-    private int currentNNAddrIndex;
-    private boolean disallowFallbackToInsecureCluster;
-
-    private String homeDirectory;
-
-    /** Is WebHDFS enabled in conf? */
-    public static boolean isEnabled(final Configuration conf, final Log log) {
-        final boolean b = conf.getBoolean(DFSConfigKeys.DFS_WEBHDFS_ENABLED_KEY,
-                DFSConfigKeys.DFS_WEBHDFS_ENABLED_DEFAULT);
-        return b;
-    }
-
-
-    static Map<?, ?> jsonParse(final HttpURLConnection c, final boolean useErrorStream
-    ) throws IOException {
-        if (c.getContentLength() == 0) {
-            return null;
-        }
-        final InputStream in = useErrorStream ? c.getErrorStream() : c.getInputStream();
-        if (in == null) {
-            throw new IOException("The " + (useErrorStream ? "error" : "input") + " stream is null.");
-        }
-        try {
-            final String contentType = c.getContentType();
-            if (contentType != null) {
-                final MediaType parsed = MediaType.valueOf(contentType);
-                if (!MediaType.APPLICATION_JSON_TYPE.isCompatible(parsed)) {
-                    throw new IOException("Content-Type \"" + contentType
-                            + "\" is incompatible with \"" + MediaType.APPLICATION_JSON
-                            + "\" (parsed=\"" + parsed + "\")");
-                }
-            }
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.reader(Map.class).readValue(in);
-        } finally {
-            in.close();
-        }
-    }
-
-    private static Map<?, ?> validateResponse(final HttpOpParam.Op op,
-                                              final HttpURLConnection conn, boolean unwrapException) throws IOException {
-        final int code = conn.getResponseCode();
-        // server is demanding an authentication we don't support
-        if (code == HttpURLConnection.HTTP_UNAUTHORIZED) {
-            // match hdfs/rpc exception
-            throw new AccessControlException(conn.getResponseMessage());
-        }
-        if (code != op.getExpectedHttpResponseCode()) {
-            final Map<?, ?> m;
-            try {
-                m = jsonParse(conn, true);
-            } catch (Exception e) {
-                throw new IOException("Unexpected HTTP response: code=" + code + " != "
-                        + op.getExpectedHttpResponseCode() + ", " + op.toQueryString()
-                        + ", message=" + conn.getResponseMessage(), e);
-            }
-
-            if (m == null) {
-                throw new IOException("Unexpected HTTP response: code=" + code + " != "
-                        + op.getExpectedHttpResponseCode() + ", " + op.toQueryString()
-                        + ", message=" + conn.getResponseMessage());
-            } else if (m.get(RemoteException.class.getSimpleName()) == null) {
-                return m;
-            }
-
-            IOException re = JsonUtil.toRemoteException(m);
-            // extract UGI-related exceptions and unwrap InvalidToken
-            // the NN mangles these exceptions but the DN does not and may need
-            // to re-fetch a token if either report the token is expired
-            if (re.getMessage() != null && re.getMessage().startsWith(
-                    "Failed to obtain user group information:")) {
-                String[] parts = re.getMessage().split(":\\s+", 3);
-                re = new RemoteException(parts[1], parts[2]);
-                re = ((RemoteException) re).unwrapRemoteException(SecretManager.InvalidToken.class);
-            }
-            throw unwrapException ? toIOException(re) : re;
-        }
-        return null;
-    }
-
-    /**
-     * Covert an exception to an IOException.
-     *
-     * For a non-IOException, wrap it with IOException.
-     * For a RemoteException, unwrap it.
-     * For an IOException which is not a RemoteException, return it.
-     */
-    private static IOException toIOException(Exception e) {
-        if (!(e instanceof IOException)) {
-            return new IOException(e);
-        }
-
-        final IOException ioe = (IOException) e;
-        if (!(ioe instanceof RemoteException)) {
-            return ioe;
-        }
-
-        return ((RemoteException) ioe).unwrapRemoteException();
-    }
+    private Path homeDir;
+    private KerberosIdentity kerberosIdentity;
 
     /** Remove offset parameter, if there is any, from the url */
     static URL removeOffsetParam(final URL url) throws MalformedURLException {
@@ -236,27 +179,109 @@ public class DLFileSystem extends FileSystem
     }
 
     /**
-     * Return the protocol scheme for the FileSystem.
-     * <p/>
+     * Converts a <code>FsPermission</code> to a Unix octal representation.
      *
-     * @return <code>webhdfs</code>
+     * @param p the permission.
+     *
+     * @return the Unix string symbolic reprentation.
      */
-    @Override
-    public String getScheme() {
-        return SCHEME;
+    public static String permissionToString(FsPermission p) {
+        return Integer.toString((p == null) ? DEFAULT_PERMISSION : p.toShort(), 8);
     }
 
     /**
-     * return the underlying transport protocol (http / https).
+     * Convenience method that creates a <code>HttpURLConnection</code> for the
+     * HttpFSServer file system operations.
+     * <p/>
+     * This methods performs and injects any needed authentication credentials
+     * via the {@link #getConnection(URL, String)} method
+     *
+     * @param method the HTTP method.
+     * @param params the query string parameters.
+     * @param path the file path
+     * @param makeQualified if the path should be 'makeQualified'
+     *
+     * @return a <code>HttpURLConnection</code> for the HttpFSServer server,
+     *         authenticated and ready to use for the specified path and file system operation.
+     *
+     * @throws IOException thrown if an IO error occurrs.
      */
-    protected String getTransportScheme() {
-        return "https";
+    private HttpURLConnection getConnection(final String method,
+                                            Map<String, String> params, Path path, boolean makeQualified)
+            throws IOException {
+        return getConnection(method, params, null, path, makeQualified);
     }
 
-    protected Text getTokenKind() {
-        return TOKEN_KIND;
+    /**
+     * Convenience method that creates a <code>HttpURLConnection</code> for the
+     * HttpFSServer file system operations.
+     * <p/>
+     * This methods performs and injects any needed authentication credentials
+     * via the {@link #getConnection(URL, String)} method
+     *
+     * @param method the HTTP method.
+     * @param params the query string parameters.
+     * @param multiValuedParams multi valued parameters of the query string
+     * @param path the file path
+     * @param makeQualified if the path should be 'makeQualified'
+     *
+     * @return HttpURLConnection a <code>HttpURLConnection</code> for the
+     *         HttpFSServer server, authenticated and ready to use for the
+     *         specified path and file system operation.
+     *
+     * @throws IOException thrown if an IO error occurrs.
+     */
+    private HttpURLConnection getConnection(final String method,
+                                            Map<String, String> params, Map<String, List<String>> multiValuedParams,
+                                            Path path, boolean makeQualified) throws IOException {
+
+        if (makeQualified) {
+            path = makeQualified(path);
+        }
+        final URL url = DLFileSystemUtils.createURL(path, params, multiValuedParams);
+        try {
+            return kerberosIdentity.doAs(
+                    new PrivilegedExceptionAction<HttpURLConnection>() {
+                        @Override
+                        public HttpURLConnection run() throws Exception {
+
+                            return getConnection(url, method);
+                        }
+                    }
+            );
+        } catch (Exception ex) {
+            if (ex instanceof IOException) {
+                throw (IOException) ex;
+            } else {
+                throw new IOException(ex);
+            }
+        }
     }
 
+    /**
+     * Convenience method that creates a <code>HttpURLConnection</code> for the specified URL.
+     * <p/>
+     * This methods performs and injects any needed authentication credentials.
+     *
+     * @param url    url to connect to.
+     * @param method the HTTP method.
+     * @return a <code>HttpURLConnection</code> for the HttpFSServer server, authenticated and ready to use for
+     * the specified path and file system operation.
+     * @throws IOException thrown if an IO error occurrs.
+     */
+    private HttpURLConnection getConnection(URL url, String method) throws IOException {
+        try {
+            LOG.debug("Execute:" + url);
+            HttpURLConnection conn = authURL.openConnection(url, authToken);
+            conn.setRequestMethod(method);
+            if (method.equals(HTTP_POST) || method.equals(HTTP_PUT)) {
+                conn.setDoOutput(true);
+            }
+            return conn;
+        } catch (Exception ex) {
+            throw new IOException(ex);
+        }
+    }
 
     /**
      * Returns the UGI as configured in the configuration. Currently only supports the keytab implementation.
@@ -286,1222 +311,937 @@ public class DLFileSystem extends FileSystem
         return kerberosIdentity;
     }
 
+
+    /**
+     * Called after a new FileSystem instance is constructed.
+     *
+     * @param name a uri whose authority section names the host, port, etc. for this FileSystem
+     * @param conf the configuration
+     */
     @Override
-    public synchronized void initialize(URI uri, Configuration conf
-    ) throws IOException {
-        super.initialize(uri, conf);
+    public void initialize(URI name, Configuration conf) throws IOException {
 
-        //setConf(conf);
-
-
-        /** set user pattern based on configuration file */
-        UserParam.setUserPattern(conf.get(
-                DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_KEY,
-                DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_DEFAULT));
-
-      /* connectionFactory = URLConnectionFactory
-                .newDefaultURLConnectionFactory(conf);
-                */
-
-        //ugi = UserGroupInformation.getCurrentUser();
 
         kerberosIdentity = initialiseKerberosIdentity(conf);
 
-        this.uri = URI.create(uri.getScheme() + "://" + uri.getAuthority());
-        this.nnAddrs = resolveNNAddr();
-
         LOG.info("Created kerberosIdentity " + kerberosIdentity + " for " + uri);
 
-        boolean isHA = HAUtil.isClientFailoverConfigured(conf, this.uri);
-        boolean isLogicalUri = isHA && HAUtil.isLogicalUri(conf, this.uri);
-        // In non-HA or non-logical URI case, the code needs to call
-        // getCanonicalUri() in order to handle the case where no port is
-        // specified in the URI
-        this.tokenServiceName = isLogicalUri ?
-                HAUtil.buildTokenServiceForLogicalUri(uri, getScheme())
-                : SecurityUtil.buildTokenService(getCanonicalUri());
+        super.initialize(name, conf);
 
-        if (!isHA) {
-            this.retryPolicy =
-                    RetryUtils.getDefaultRetryPolicy(
-                            conf,
-                            DFSConfigKeys.DFS_HTTP_CLIENT_RETRY_POLICY_ENABLED_KEY,
-                            DFSConfigKeys.DFS_HTTP_CLIENT_RETRY_POLICY_ENABLED_DEFAULT,
-                            DFSConfigKeys.DFS_HTTP_CLIENT_RETRY_POLICY_SPEC_KEY,
-                            DFSConfigKeys.DFS_HTTP_CLIENT_RETRY_POLICY_SPEC_DEFAULT,
-                            SafeModeException.class);
-        } else {
-
-            int maxFailoverAttempts = conf.getInt(
-                    DFSConfigKeys.DFS_HTTP_CLIENT_FAILOVER_MAX_ATTEMPTS_KEY,
-                    DFSConfigKeys.DFS_HTTP_CLIENT_FAILOVER_MAX_ATTEMPTS_DEFAULT);
-            int maxRetryAttempts = conf.getInt(
-                    DFSConfigKeys.DFS_HTTP_CLIENT_RETRY_MAX_ATTEMPTS_KEY,
-                    DFSConfigKeys.DFS_HTTP_CLIENT_RETRY_MAX_ATTEMPTS_DEFAULT);
-            int failoverSleepBaseMillis = conf.getInt(
-                    DFSConfigKeys.DFS_HTTP_CLIENT_FAILOVER_SLEEPTIME_BASE_KEY,
-                    DFSConfigKeys.DFS_HTTP_CLIENT_FAILOVER_SLEEPTIME_BASE_DEFAULT);
-            int failoverSleepMaxMillis = conf.getInt(
-                    DFSConfigKeys.DFS_HTTP_CLIENT_FAILOVER_SLEEPTIME_MAX_KEY,
-                    DFSConfigKeys.DFS_HTTP_CLIENT_FAILOVER_SLEEPTIME_MAX_DEFAULT);
-
-            this.retryPolicy = RetryPolicies
-                    .failoverOnNetworkException(RetryPolicies.TRY_ONCE_THEN_FAIL,
-                            maxFailoverAttempts, maxRetryAttempts, failoverSleepBaseMillis,
-                            failoverSleepMaxMillis);
-        }
-
-        this.homeDirectory = conf.get("fs.dl.impl.homeDirectory");
-
+        String homeDirectory = conf.get("fs.dl.impl.homeDirectory");
         if (homeDirectory == null)
             throw new IOException("The Datalake requires a home directory to be configured in the fs.dl.impl.homeDirectory configuration variable. This is in the form /data_lake/dlxxxx");
 
-        this.workingDir = getHomeDirectory();
-        this.canRefreshDelegationToken = false; //TODO: try to use delegation tokens as well.
-        this.disallowFallbackToInsecureCluster = !conf.getBoolean(
-                CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_KEY,
-                CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_DEFAULT);
-        this.delegationToken = null;
-    }
+
+        homeDir = new Path(homeDirectory);
+
+        setWorkingDirectory(homeDir);
 
 
-    @Override
-    public URI getCanonicalUri() {
-        return super.getCanonicalUri();
-    }
+        try {
+            uri = new URI(name.getScheme() + "://" + name.getAuthority());
 
-    // the first getAuthParams() for a non-token op will either get the
-    // internal token from the ugi or lazy fetch one
-    protected synchronized Token<?> getDelegationToken() throws IOException {
-        if (canRefreshDelegationToken && delegationToken == null) {
-            Token<?> token = tokenSelector.selectToken(
-                    new Text(getCanonicalServiceName()), kerberosIdentity.getTokens());
-            // ugi tokens are usually indicative of a task which can't
-            // refetch tokens.  even if ugi has credentials, don't attempt
-            // to get another token to match hdfs/rpc behavior
-            if (token != null) {
-                LOG.debug("Using UGI token: " + token);
-                canRefreshDelegationToken = false;
-            } else {
-                token = getDelegationToken(null);
-                if (token != null) {
-                    LOG.debug("Fetched new token: " + token);
-                } else { // security is disabled
-                    canRefreshDelegationToken = false;
-                }
-            }
-            setDelegationToken(token);
+        } catch (URISyntaxException ex) {
+            throw new IOException(ex);
         }
-        return delegationToken;
+
+        Class<? extends DelegationTokenAuthenticator> klass =
+                getConf().getClass("httpfs.authenticator.class",
+                        KerberosDelegationTokenAuthenticator.class,
+                        DelegationTokenAuthenticator.class);
+
+        DelegationTokenAuthenticator authenticator =
+                ReflectionUtils.newInstance(klass, getConf());
+
+        authURL = new DelegationTokenAuthenticatedURL(authenticator);
     }
 
     @Override
-    public <T extends TokenIdentifier> void setDelegationToken(
-            final Token<T> token) {
-        synchronized (this) {
-            delegationToken = token;
-        }
+    public String getScheme() {
+        return SCHEME;
     }
 
-    @VisibleForTesting
-    synchronized boolean replaceExpiredDelegationToken() throws IOException {
-        boolean replaced = false;
-        if (canRefreshDelegationToken) {
-            Token<?> token = getDelegationToken(null);
-            LOG.debug("Replaced expired token: " + token);
-            setDelegationToken(token);
-            replaced = (token != null);
-        }
-        return replaced;
-    }
-
-    @Override
-    @VisibleForTesting
-    public int getDefaultPort() {
-        return getConf().getInt(DFSConfigKeys.DFS_NAMENODE_HTTP_PORT_KEY,
-                DFSConfigKeys.DFS_NAMENODE_HTTP_PORT_DEFAULT);
-    }
-
+    /**
+     * Returns a URI whose scheme and authority identify this FileSystem.
+     *
+     * @return the URI whose scheme and authority identify this FileSystem.
+     */
     @Override
     public URI getUri() {
-        return this.uri;
+        return uri;
     }
 
+
+    /**
+     * Get the default port for this file system.
+     * @return the default port or 0 if there isn't one
+     */
     @Override
-    protected URI canonicalizeUri(URI uri) {
-        return NetUtils.getCanonicalUri(uri, getDefaultPort());
+    protected int getDefaultPort() {
+        return getConf().getInt("fs.dl.impl.port", 14000);
     }
 
+    /**
+     * Opens an FSDataInputStream at the indicated Path.
+     * </p>
+     * IMPORTANT: the returned <code><FSDataInputStream/code> does not support the
+     * <code>PositionReadable</code> and <code>Seekable</code> methods.
+     *
+     * @param f the file name to open
+     * @param bufferSize the size of the buffer to be used.
+     */
     @Override
-    public Path getHomeDirectory() {
-        return makeQualified(new Path(this.homeDirectory));
+    public FSDataInputStream open(Path f, int bufferSize) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.OPEN.toString());
+        HttpURLConnection conn = getConnection(Operation.OPEN.getMethod(), params,
+                f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        return new FSDataInputStream(
+                new HttpFSDataInputStream(conn.getInputStream(), bufferSize));
     }
 
+    /*
+     * Common handling for uploading data for create and append operations.
+     */
+    private FSDataOutputStream uploadData(String method, Path f, Map<String, String> params,
+                                          int bufferSize, int expectedStatus) throws IOException {
+        HttpURLConnection conn = getConnection(method, params, f, true);
+        conn.setInstanceFollowRedirects(false);
+        boolean exceptionAlreadyHandled = false;
+        try {
+            if (conn.getResponseCode() == HTTP_TEMPORARY_REDIRECT) {
+                exceptionAlreadyHandled = true;
+                String location = conn.getHeaderField("Location");
+                if (location != null) {
+                    conn = getConnection(new URL(location), method);
+                    conn.setRequestProperty("Content-Type", UPLOAD_CONTENT_TYPE);
+                    try {
+                        OutputStream os = new BufferedOutputStream(conn.getOutputStream(), bufferSize);
+                        return new HttpFSDataOutputStream(conn, os, expectedStatus, statistics);
+                    } catch (IOException ex) {
+                        HttpExceptionUtils.validateResponse(conn, expectedStatus);
+                        throw ex;
+                    }
+                } else {
+                    HttpExceptionUtils.validateResponse(conn, HTTP_TEMPORARY_REDIRECT);
+                    throw new IOException("Missing HTTP 'Location' header for [" + conn.getURL() + "]");
+                }
+            } else {
+                throw new IOException(
+                        MessageFormat.format("Expected HTTP status was [307], received [{0}]",
+                                conn.getResponseCode()));
+            }
+        } catch (IOException ex) {
+            if (exceptionAlreadyHandled) {
+                throw ex;
+            } else {
+                HttpExceptionUtils.validateResponse(conn, HTTP_TEMPORARY_REDIRECT);
+                throw ex;
+            }
+        }
+    }
+
+    /**
+     * Opens an FSDataOutputStream at the indicated Path with write-progress
+     * reporting.
+     * <p/>
+     * IMPORTANT: The <code>Progressable</code> parameter is not used.
+     *
+     * @param f           the file name to open.
+     * @param permission  file permission.
+     * @param overwrite   if a file with this name already exists, then if true,
+     *                    the file will be overwritten, and if false an error will be thrown.
+     * @param bufferSize  the size of the buffer to be used.
+     * @param replication required block replication for the file.
+     * @param blockSize   block size.
+     * @param progress    progressable.
+     * @throws IOException
+     * @see #setPermission(Path, FsPermission)
+     */
     @Override
-    public synchronized Path getWorkingDirectory() {
+    public FSDataOutputStream create(Path f, FsPermission permission,
+                                     boolean overwrite, int bufferSize,
+                                     short replication, long blockSize,
+                                     Progressable progress) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.CREATE.toString());
+        params.put(OVERWRITE_PARAM, Boolean.toString(overwrite));
+        params.put(REPLICATION_PARAM, Short.toString(replication));
+        params.put(BLOCKSIZE_PARAM, Long.toString(blockSize));
+        params.put(PERMISSION_PARAM, permissionToString(permission));
+        return uploadData(Operation.CREATE.getMethod(), f, params, bufferSize,
+                HttpURLConnection.HTTP_CREATED);
+    }
+
+    /**
+     * Append to an existing file (optional operation).
+     * <p/>
+     * IMPORTANT: The <code>Progressable</code> parameter is not used.
+     *
+     * @param f          the existing file to be appended.
+     * @param bufferSize the size of the buffer to be used.
+     * @param progress   for reporting progress if it is not null.
+     * @throws IOException
+     */
+    @Override
+    public FSDataOutputStream append(Path f, int bufferSize,
+                                     Progressable progress) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.APPEND.toString());
+        return uploadData(Operation.APPEND.getMethod(), f, params, bufferSize,
+                HttpURLConnection.HTTP_OK);
+    }
+
+    /**
+     * Concat existing files together.
+     * @param f the path to the target destination.
+     * @param psrcs the paths to the sources to use for the concatenation.
+     *
+     * @throws IOException
+     */
+    @Override
+    public void concat(Path f, Path[] psrcs) throws IOException {
+        List<String> strPaths = new ArrayList<String>(psrcs.length);
+        for (Path psrc : psrcs) {
+            strPaths.add(psrc.toUri().getPath());
+        }
+        String srcs = StringUtils.join(",", strPaths);
+
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.CONCAT.toString());
+        params.put(SOURCES_PARAM, srcs);
+        HttpURLConnection conn = getConnection(Operation.CONCAT.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+    }
+
+    /**
+     * Renames Path src to Path dst.  Can take place on local fs
+     * or remote DFS.
+     */
+    @Override
+    public boolean rename(Path src, Path dst) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.RENAME.toString());
+
+        String destination = makeQualified(dst).toUri().getPath();
+
+        params.put(DESTINATION_PARAM, destination);
+
+        HttpURLConnection conn = getConnection(Operation.RENAME.getMethod(),
+                params, src, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        return (Boolean) json.get(RENAME_JSON);
+    }
+
+    /**
+     * Delete a file.
+     *
+     * @deprecated Use delete(Path, boolean) instead
+     */
+    @Deprecated
+    @Override
+    public boolean delete(Path f) throws IOException {
+        return delete(f, false);
+    }
+
+    /**
+     * Delete a file.
+     *
+     * @param f the path to delete.
+     * @param recursive if path is a directory and set to
+     * true, the directory is deleted else throws an exception. In
+     * case of a file the recursive can be set to either true or false.
+     *
+     * @return true if delete is successful else false.
+     *
+     * @throws IOException
+     */
+    @Override
+    public boolean delete(Path f, boolean recursive) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.DELETE.toString());
+        params.put(RECURSIVE_PARAM, Boolean.toString(recursive));
+        HttpURLConnection conn = getConnection(Operation.DELETE.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        return (Boolean) json.get(DELETE_JSON);
+    }
+
+    /**
+     * List the statuses of the files/directories in the given path if the path is
+     * a directory.
+     *
+     * @param f given path
+     *
+     * @return the statuses of the files/directories in the given patch
+     *
+     * @throws IOException
+     */
+    @Override
+    public FileStatus[] listStatus(Path f) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.LISTSTATUS.toString());
+        HttpURLConnection conn = getConnection(Operation.LISTSTATUS.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        json = (JSONObject) json.get(FILE_STATUSES_JSON);
+        JSONArray jsonArray = (JSONArray) json.get(FILE_STATUS_JSON);
+        FileStatus[] array = new FileStatus[jsonArray.size()];
+        f = makeQualified(f);
+        for (int i = 0; i < jsonArray.size(); i++) {
+            array[i] = createFileStatus(f, (JSONObject) jsonArray.get(i));
+        }
+        return array;
+    }
+
+    /**
+     * Get the current working directory for the given file system
+     *
+     * @return the directory pathname
+     */
+    @Override
+    public Path getWorkingDirectory() {
+        if (workingDir == null) {
+            workingDir = getHomeDirectory();
+        }
         return workingDir;
     }
 
-    @Override
-    public synchronized void setWorkingDirectory(final Path dir) {
-        String result = makeAbsolute(dir).toUri().getPath();
-        if (!DFSUtil.isValidName(result)) {
-            throw new IllegalArgumentException("Invalid DFS directory name " +
-                    result);
-        }
-        workingDir = makeAbsolute(dir);
-    }
-
-    private Path makeAbsolute(Path f) {
-        return f.isAbsolute() ? f : new Path(workingDir, f);
-    }
-
-    private synchronized InetSocketAddress getCurrentNNAddr() {
-        return nnAddrs[currentNNAddrIndex];
-    }
-
     /**
-     * Reset the appropriate state to gracefully fail over to another name node
-     */
-    private synchronized void resetStateToFailOver() {
-        currentNNAddrIndex = (currentNNAddrIndex + 1) % nnAddrs.length;
-    }
-
-    /**
-     * Return a URL pointing to given path on the namenode.
+     * Set the current working directory for the given file system. All relative
+     * paths will be resolved relative to it.
      *
-     * @param path to obtain the URL for
-     * @param query string to append to the path
-     * @return namenode URL referring to the given path
-     * @throws IOException on error constructing the URL
+     * @param newDir new directory.
      */
-    private URL getNamenodeURL(String path, String query) throws IOException {
-        InetSocketAddress nnAddr = getCurrentNNAddr();
-        final URL url = new URL(getTransportScheme(), nnAddr.getHostName(),
-                nnAddr.getPort(), path + '?' + query);
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("url=" + url);
-        }
-        return url;
-    }
-
-
-    Param<?, ?>[] getAuthParameters(final HttpOpParam.Op op) throws IOException {
-        List<Param<?, ?>> authParams = Lists.newArrayList();
-        // Skip adding delegation token for token operations because these
-        // operations require authentication.
-        Token<?> token = null;
-        if (!op.getRequireAuth()) {
-            token = getDelegationToken();
-        }
-        if (token != null) {
-            authParams.add(new DelegationParam(token.encodeToUrlString()));
-        } else {
-
-            authParams.add(new UserParam(kerberosIdentity.getPrincipalShortName()));
-        }
-        return authParams.toArray(new Param<?, ?>[0]);
-    }
-
-    URL toUrl(final HttpOpParam.Op op, final Path fspath,
-              final Param<?, ?>... parameters) throws IOException {
-        //initialize URI path and query
-        final String path = PATH_PREFIX
-                + (fspath == null ? "/" : makeQualified(fspath).toUri().getRawPath());
-        final String query = op.toQueryString()
-                + Param.toSortedString("&", getAuthParameters(op))
-                + Param.toSortedString("&", parameters);
-        final URL url = getNamenodeURL(path, query);
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("url=" + url);
-        }
-
-        return url;
-    }
-
-    private FsPermission applyUMask(FsPermission permission) {
-        if (permission == null) {
-            permission = FsPermission.getDefault();
-        }
-        return permission.applyUMask(FsPermission.getUMask(getConf()));
-    }
-
-    private HdfsFileStatus getHdfsFileStatus(Path f) throws IOException {
-
-        final HttpOpParam.Op op = GetOpParam.Op.GETFILESTATUS;
-        HdfsFileStatus status;
-        try {
-            status = new FsPathResponseRunner<HdfsFileStatus>(op, f) {
-                @Override
-                HdfsFileStatus decodeResponse(Map<?, ?> json) {
-                    return JsonUtil.toFileStatus(json, true);
-                }
-            }.run();
-        } catch (IOException e) {
-            throw new FileNotFoundException("File does not exist: " + f);
-        }
-        if (status == null) {
-            throw new FileNotFoundException("File does not exist: " + f);
-        }
-        return status;
-    }
-
     @Override
-    public FileStatus getFileStatus(Path f) throws IOException {
-        statistics.incrementReadOps(1);
-        return makeQualified(getHdfsFileStatus(f), f);
+    public void setWorkingDirectory(Path newDir) {
+        workingDir = newDir;
     }
 
-    private FileStatus makeQualified(HdfsFileStatus f, Path parent) {
-        return new FileStatus(f.getLen(), f.isDir(), f.getReplication(),
-                f.getBlockSize(), f.getModificationTime(), f.getAccessTime(),
-                f.getPermission(), f.getOwner(), f.getGroup(),
-                f.isSymlink() ? new Path(f.getSymlink()) : null,
-                f.getFullPath(parent).makeQualified(getUri(), getWorkingDirectory()));
-    }
-
-    @Override
-    public AclStatus getAclStatus(Path f) throws IOException {
-        final HttpOpParam.Op op = GetOpParam.Op.GETACLSTATUS;
-        AclStatus status = new FsPathResponseRunner<AclStatus>(op, f) {
-            @Override
-            AclStatus decodeResponse(Map<?, ?> json) {
-                return JsonUtil.toAclStatus(json);
-            }
-        }.run();
-        if (status == null) {
-            throw new FileNotFoundException("File does not exist: " + f);
-        }
-        return status;
-    }
-
+    /**
+     * Make the given file and all non-existent parents into
+     * directories. Has the semantics of Unix 'mkdir -p'.
+     * Existence of the directory hierarchy is not an error.
+     */
     @Override
     public boolean mkdirs(Path f, FsPermission permission) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.MKDIRS;
-        return new FsPathBooleanRunner(op, f,
-                new PermissionParam(applyUMask(permission))
-        ).run();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.MKDIRS.toString());
+        params.put(PERMISSION_PARAM, permissionToString(permission));
+        HttpURLConnection conn = getConnection(Operation.MKDIRS.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        return (Boolean) json.get(MKDIRS_JSON);
     }
 
     /**
-     * Create a symlink pointing to the destination path.
-     * @see org.apache.hadoop.fs.Hdfs#createSymlink(Path, Path, boolean)
+     * Return a file status object that represents the path.
+     *
+     * @param f The path we want information from
+     *
+     * @return a FileStatus object
+     *
+     * @throws FileNotFoundException when the path does not exist;
+     * IOException see specific implementation
      */
-    public void createSymlink(Path destination, Path f, boolean createParent
-    ) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.CREATESYMLINK;
-        new FsPathRunner(op, f,
-                new DestinationParam(makeQualified(destination).toUri().getPath()),
-                new CreateParentParam(createParent)
-        ).run();
+    @Override
+    public FileStatus getFileStatus(Path f) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.GETFILESTATUS.toString());
+        HttpURLConnection conn = getConnection(Operation.GETFILESTATUS.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        json = (JSONObject) json.get(FILE_STATUS_JSON);
+        f = makeQualified(f);
+        return createFileStatus(f, json);
     }
 
+    /**
+     * Return the current user's home directory in this filesystem.
+     * The default implementation returns "/user/$USER/".
+     */
     @Override
-    public boolean rename(final Path src, final Path dst) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.RENAME;
-        return new FsPathBooleanRunner(op, src,
-                new DestinationParam(makeQualified(dst).toUri().getPath())
-        ).run();
+    public Path getHomeDirectory() {
+        return homeDir;
     }
 
-    @SuppressWarnings("deprecation")
+    /**
+     * Set owner of a path (i.e. a file or a directory).
+     * The parameters username and groupname cannot both be null.
+     *
+     * @param p The path
+     * @param username If it is null, the original username remains unchanged.
+     * @param groupname If it is null, the original groupname remains unchanged.
+     */
     @Override
-    public void rename(final Path src, final Path dst,
-                       final Options.Rename... options) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.RENAME;
-        new FsPathRunner(op, src,
-                new DestinationParam(makeQualified(dst).toUri().getPath()),
-                new RenameOptionSetParam(options)
-        ).run();
-    }
-
-    @Override
-    public void setXAttr(Path p, String name, byte[] value,
-                         EnumSet<XAttrSetFlag> flag) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.SETXATTR;
-        if (value != null) {
-            new FsPathRunner(op, p, new XAttrNameParam(name), new XAttrValueParam(
-                    XAttrCodec.encodeValue(value, XAttrCodec.HEX)),
-                    new XAttrSetFlagParam(flag)).run();
-        } else {
-            new FsPathRunner(op, p, new XAttrNameParam(name),
-                    new XAttrSetFlagParam(flag)).run();
-        }
-    }
-
-    @Override
-    public byte[] getXAttr(Path p, final String name) throws IOException {
-        final HttpOpParam.Op op = GetOpParam.Op.GETXATTRS;
-        return new FsPathResponseRunner<byte[]>(op, p, new XAttrNameParam(name),
-                new XAttrEncodingParam(XAttrCodec.HEX)) {
-            @Override
-            byte[] decodeResponse(Map<?, ?> json) throws IOException {
-                return JsonUtil.getXAttr(json, name);
-            }
-        }.run();
-    }
-
-    @Override
-    public Map<String, byte[]> getXAttrs(Path p) throws IOException {
-        final HttpOpParam.Op op = GetOpParam.Op.GETXATTRS;
-        return new FsPathResponseRunner<Map<String, byte[]>>(op, p,
-                new XAttrEncodingParam(XAttrCodec.HEX)) {
-            @Override
-            Map<String, byte[]> decodeResponse(Map<?, ?> json) throws IOException {
-                return JsonUtil.toXAttrs(json);
-            }
-        }.run();
-    }
-
-    @Override
-    public Map<String, byte[]> getXAttrs(Path p, final List<String> names)
+    public void setOwner(Path p, String username, String groupname)
             throws IOException {
-        Preconditions.checkArgument(names != null && !names.isEmpty(),
-                "XAttr names cannot be null or empty.");
-        Param<?, ?>[] parameters = new Param<?, ?>[names.size() + 1];
-        for (int i = 0; i < parameters.length - 1; i++) {
-            parameters[i] = new XAttrNameParam(names.get(i));
-        }
-        parameters[parameters.length - 1] = new XAttrEncodingParam(XAttrCodec.HEX);
-
-        final HttpOpParam.Op op = GetOpParam.Op.GETXATTRS;
-        return new FsPathResponseRunner<Map<String, byte[]>>(op, parameters, p) {
-            @Override
-            Map<String, byte[]> decodeResponse(Map<?, ?> json) throws IOException {
-                return JsonUtil.toXAttrs(json);
-            }
-        }.run();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.SETOWNER.toString());
+        params.put(OWNER_PARAM, username);
+        params.put(GROUP_PARAM, groupname);
+        HttpURLConnection conn = getConnection(Operation.SETOWNER.getMethod(),
+                params, p, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
     }
 
+    /**
+     * Set permission of a path.
+     *
+     * @param p path.
+     * @param permission permission.
+     */
     @Override
-    public List<String> listXAttrs(Path p) throws IOException {
-        final HttpOpParam.Op op = GetOpParam.Op.LISTXATTRS;
-        return new FsPathResponseRunner<List<String>>(op, p) {
-            @Override
-            List<String> decodeResponse(Map<?, ?> json) throws IOException {
-                return JsonUtil.toXAttrNames(json);
-            }
-        }.run();
+    public void setPermission(Path p, FsPermission permission) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.SETPERMISSION.toString());
+        params.put(PERMISSION_PARAM, permissionToString(permission));
+        HttpURLConnection conn = getConnection(Operation.SETPERMISSION.getMethod(), params, p, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
     }
 
+    /**
+     * Set access time of a file
+     *
+     * @param p The path
+     * @param mtime Set the modification time of this file.
+     * The number of milliseconds since Jan 1, 1970.
+     * A value of -1 means that this call should not set modification time.
+     * @param atime Set the access time of this file.
+     * The number of milliseconds since Jan 1, 1970.
+     * A value of -1 means that this call should not set access time.
+     */
     @Override
-    public void removeXAttr(Path p, String name) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.REMOVEXATTR;
-        new FsPathRunner(op, p, new XAttrNameParam(name)).run();
+    public void setTimes(Path p, long mtime, long atime) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.SETTIMES.toString());
+        params.put(MODIFICATION_TIME_PARAM, Long.toString(mtime));
+        params.put(ACCESS_TIME_PARAM, Long.toString(atime));
+        HttpURLConnection conn = getConnection(Operation.SETTIMES.getMethod(),
+                params, p, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
     }
 
+    /**
+     * Set replication for an existing file.
+     *
+     * @param src file name
+     * @param replication new replication
+     *
+     * @return true if successful;
+     *         false if file does not exist or is a directory
+     *
+     * @throws IOException
+     */
     @Override
-    public void setOwner(final Path p, final String owner, final String group
-    ) throws IOException {
-        if (owner == null && group == null) {
-            throw new IOException("owner == null && group == null");
-        }
-
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.SETOWNER;
-        new FsPathRunner(op, p,
-                new OwnerParam(owner), new GroupParam(group)
-        ).run();
+    public boolean setReplication(Path src, short replication)
+            throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.SETREPLICATION.toString());
+        params.put(REPLICATION_PARAM, Short.toString(replication));
+        HttpURLConnection conn =
+                getConnection(Operation.SETREPLICATION.getMethod(), params, src, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        return (Boolean) json.get(SET_REPLICATION_JSON);
     }
 
-    @Override
-    public void setPermission(final Path p, final FsPermission permission
-    ) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.SETPERMISSION;
-        new FsPathRunner(op, p, new PermissionParam(permission)).run();
-    }
-
+    /**
+     * Modify the ACL entries for a file.
+     *
+     * @param path Path to modify
+     * @param aclSpec List<AclEntry> describing modifications
+     * @throws IOException
+     */
     @Override
     public void modifyAclEntries(Path path, List<AclEntry> aclSpec)
             throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.MODIFYACLENTRIES;
-        new FsPathRunner(op, path, new AclPermissionParam(aclSpec)).run();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.MODIFYACLENTRIES.toString());
+        params.put(ACLSPEC_PARAM, AclEntry.aclSpecToString(aclSpec));
+        HttpURLConnection conn = getConnection(
+                Operation.MODIFYACLENTRIES.getMethod(), params, path, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
     }
 
+    /**
+     * Remove the specified ACL entries from a file
+     * @param path Path to modify
+     * @param aclSpec List<AclEntry> describing entries to remove
+     * @throws IOException
+     */
     @Override
     public void removeAclEntries(Path path, List<AclEntry> aclSpec)
             throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.REMOVEACLENTRIES;
-        new FsPathRunner(op, path, new AclPermissionParam(aclSpec)).run();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.REMOVEACLENTRIES.toString());
+        params.put(ACLSPEC_PARAM, AclEntry.aclSpecToString(aclSpec));
+        HttpURLConnection conn = getConnection(
+                Operation.REMOVEACLENTRIES.getMethod(), params, path, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
     }
 
+    /**
+     * Removes the default ACL for the given file
+     * @param path Path from which to remove the default ACL.
+     * @throws IOException
+     */
     @Override
     public void removeDefaultAcl(Path path) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.REMOVEDEFAULTACL;
-        new FsPathRunner(op, path).run();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.REMOVEDEFAULTACL.toString());
+        HttpURLConnection conn = getConnection(
+                Operation.REMOVEDEFAULTACL.getMethod(), params, path, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
     }
 
+    /**
+     * Remove all ACLs from a file
+     * @param path Path from which to remove all ACLs
+     * @throws IOException
+     */
     @Override
     public void removeAcl(Path path) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.REMOVEACL;
-        new FsPathRunner(op, path).run();
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.REMOVEACL.toString());
+        HttpURLConnection conn = getConnection(Operation.REMOVEACL.getMethod(),
+                params, path, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+    }
+
+    /**
+     * Set the ACLs for the given file
+     * @param path Path to modify
+     * @param aclSpec List<AclEntry> describing modifications, must include
+     *                entries for user, group, and others for compatibility
+     *                with permission bits.
+     * @throws IOException
+     */
+    @Override
+    public void setAcl(Path path, List<AclEntry> aclSpec) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.SETACL.toString());
+        params.put(ACLSPEC_PARAM, AclEntry.aclSpecToString(aclSpec));
+        HttpURLConnection conn = getConnection(Operation.SETACL.getMethod(),
+                params, path, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+    }
+
+    /**
+     * Get the ACL information for a given file
+     * @param path Path to acquire ACL info for
+     * @return the ACL information in JSON format
+     * @throws IOException
+     */
+    @Override
+    public AclStatus getAclStatus(Path path) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.GETACLSTATUS.toString());
+        HttpURLConnection conn = getConnection(Operation.GETACLSTATUS.getMethod(),
+                params, path, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        json = (JSONObject) json.get(ACL_STATUS_JSON);
+        return createAclStatus(json);
+    }
+
+    private FileStatus createFileStatus(Path parent, JSONObject json) {
+        String pathSuffix = (String) json.get(PATH_SUFFIX_JSON);
+        Path path = (pathSuffix.equals("")) ? parent : new Path(parent, pathSuffix);
+        FILE_TYPE type = FILE_TYPE.valueOf((String) json.get(TYPE_JSON));
+        long len = (Long) json.get(LENGTH_JSON);
+        String owner = (String) json.get(OWNER_JSON);
+        String group = (String) json.get(GROUP_JSON);
+        FsPermission permission =
+                new FsPermission(Short.parseShort((String) json.get(PERMISSION_JSON), 8));
+        long aTime = (Long) json.get(ACCESS_TIME_JSON);
+        long mTime = (Long) json.get(MODIFICATION_TIME_JSON);
+        long blockSize = (Long) json.get(BLOCK_SIZE_JSON);
+        short replication = ((Long) json.get(REPLICATION_JSON)).shortValue();
+        FileStatus fileStatus = null;
+
+        switch (type) {
+            case FILE:
+            case DIRECTORY:
+                fileStatus = new FileStatus(len, (type == FILE_TYPE.DIRECTORY),
+                        replication, blockSize, mTime, aTime,
+                        permission, owner, group, path);
+                break;
+            case SYMLINK:
+                Path symLink = null;
+                fileStatus = new FileStatus(len, false,
+                        replication, blockSize, mTime, aTime,
+                        permission, owner, group, symLink,
+                        path);
+        }
+        return fileStatus;
+    }
+
+    /**
+     * Convert the given JSON object into an AclStatus
+     *
+     * @param json Input JSON representing the ACLs
+     * @return Resulting AclStatus
+     */
+    private AclStatus createAclStatus(JSONObject json) {
+        AclStatus.Builder aclStatusBuilder = new AclStatus.Builder()
+                .owner((String) json.get(OWNER_JSON))
+                .group((String) json.get(GROUP_JSON))
+                .stickyBit((Boolean) json.get(ACL_STICKY_BIT_JSON));
+        JSONArray entries = (JSONArray) json.get(ACL_ENTRIES_JSON);
+        for (Object e : entries) {
+            aclStatusBuilder.addEntry(AclEntry.parseAclEntry(e.toString(), true));
+        }
+        return aclStatusBuilder.build();
     }
 
     @Override
-    public void setAcl(final Path p, final List<AclEntry> aclSpec)
-            throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.SETACL;
-        new FsPathRunner(op, p, new AclPermissionParam(aclSpec)).run();
+    public ContentSummary getContentSummary(Path f) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.GETCONTENTSUMMARY.toString());
+        HttpURLConnection conn =
+                getConnection(Operation.GETCONTENTSUMMARY.getMethod(), params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) ((JSONObject)
+                DLFileSystemUtils.jsonParse(conn)).get(CONTENT_SUMMARY_JSON);
+        return new ContentSummary((Long) json.get(CONTENT_SUMMARY_LENGTH_JSON),
+                (Long) json.get(CONTENT_SUMMARY_FILE_COUNT_JSON),
+                (Long) json.get(CONTENT_SUMMARY_DIRECTORY_COUNT_JSON),
+                (Long) json.get(CONTENT_SUMMARY_QUOTA_JSON),
+                (Long) json.get(CONTENT_SUMMARY_SPACE_CONSUMED_JSON),
+                (Long) json.get(CONTENT_SUMMARY_SPACE_QUOTA_JSON)
+        );
     }
 
     @Override
-    public Path createSnapshot(final Path path, final String snapshotName)
-            throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.CREATESNAPSHOT;
-        Path spath = new FsPathResponseRunner<Path>(op, path,
-                new SnapshotNameParam(snapshotName)) {
+    public FileChecksum getFileChecksum(Path f) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.GETFILECHECKSUM.toString());
+        HttpURLConnection conn =
+                getConnection(Operation.GETFILECHECKSUM.getMethod(), params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        final JSONObject json = (JSONObject) ((JSONObject)
+                DLFileSystemUtils.jsonParse(conn)).get(FILE_CHECKSUM_JSON);
+        return new FileChecksum() {
             @Override
-            Path decodeResponse(Map<?, ?> json) {
-                return new Path((String) json.get(Path.class.getSimpleName()));
+            public String getAlgorithmName() {
+                return (String) json.get(CHECKSUM_ALGORITHM_JSON);
             }
-        }.run();
-        return spath;
+
+            @Override
+            public int getLength() {
+                return ((Long) json.get(CHECKSUM_LENGTH_JSON)).intValue();
+            }
+
+            @Override
+            public byte[] getBytes() {
+                return StringUtils.hexStringToByte((String) json.get(CHECKSUM_BYTES_JSON));
+            }
+
+            @Override
+            public void write(DataOutput out) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readFields(DataInput in) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     @Override
-    public void deleteSnapshot(final Path path, final String snapshotName)
+    public Token<?> getDelegationToken(final String renewer)
             throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = DeleteOpParam.Op.DELETESNAPSHOT;
-        new FsPathRunner(op, path, new SnapshotNameParam(snapshotName)).run();
-    }
-
-    @Override
-    public void renameSnapshot(final Path path, final String snapshotOldName,
-                               final String snapshotNewName) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.RENAMESNAPSHOT;
-        new FsPathRunner(op, path, new OldSnapshotNameParam(snapshotOldName),
-                new SnapshotNameParam(snapshotNewName)).run();
-    }
-
-    @Override
-    public boolean setReplication(final Path p, final short replication
-    ) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.SETREPLICATION;
-        return new FsPathBooleanRunner(op, p,
-                new ReplicationParam(replication)
-        ).run();
-    }
-
-    @Override
-    public void setTimes(final Path p, final long mtime, final long atime
-    ) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PutOpParam.Op.SETTIMES;
-        new FsPathRunner(op, p,
-                new ModificationTimeParam(mtime),
-                new AccessTimeParam(atime)
-        ).run();
-    }
-
-    @Override
-    public long getDefaultBlockSize() {
-        return getConf().getLongBytes(DFSConfigKeys.DFS_BLOCK_SIZE_KEY,
-                DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT);
-    }
-
-    @Override
-    public short getDefaultReplication() {
-        return (short) getConf().getInt(DFSConfigKeys.DFS_REPLICATION_KEY,
-                DFSConfigKeys.DFS_REPLICATION_DEFAULT);
-    }
-
-    @Override
-    public void concat(final Path trg, final Path[] srcs) throws IOException {
-        statistics.incrementWriteOps(1);
-        final HttpOpParam.Op op = PostOpParam.Op.CONCAT;
-        new FsPathRunner(op, trg, new ConcatSourcesParam(srcs)).run();
-    }
-
-    @Override
-    public FSDataOutputStream create(final Path f, final FsPermission permission,
-                                     final boolean overwrite, final int bufferSize, final short replication,
-                                     final long blockSize, final Progressable progress) throws IOException {
-        statistics.incrementWriteOps(1);
-
-        final HttpOpParam.Op op = PutOpParam.Op.CREATE;
-        return new FsPathOutputStreamRunner(op, f, bufferSize,
-                new PermissionParam(applyUMask(permission)),
-                new OverwriteParam(overwrite),
-                new BufferSizeParam(bufferSize),
-                new ReplicationParam(replication),
-                new BlockSizeParam(blockSize)
-        ).run();
-    }
-
-    @Override
-    public FSDataOutputStream append(final Path f, final int bufferSize,
-                                     final Progressable progress) throws IOException {
-        statistics.incrementWriteOps(1);
-
-        final HttpOpParam.Op op = PostOpParam.Op.APPEND;
-        return new FsPathOutputStreamRunner(op, f, bufferSize,
-                new BufferSizeParam(bufferSize)
-        ).run();
-    }
-
-    @Override
-    public boolean delete(Path f, boolean recursive) throws IOException {
-        final HttpOpParam.Op op = DeleteOpParam.Op.DELETE;
-        return new FsPathBooleanRunner(op, f,
-                new RecursiveParam(recursive)
-        ).run();
-    }
-
-    @Override
-    public FSDataInputStream open(final Path f, final int buffersize
-    ) throws IOException {
-        statistics.incrementReadOps(1);
-        final HttpOpParam.Op op = GetOpParam.Op.OPEN;
-        // use a runner so the open can recover from an invalid token
-        FsPathConnectionRunner runner =
-                new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize));
-        return new FSDataInputStream(new OffsetUrlInputStream(
-                new UnresolvedUrlOpener(runner), new OffsetUrlOpener(null)));
-    }
-
-    @Override
-    public synchronized void close() throws IOException {
         try {
-            if (canRefreshDelegationToken && delegationToken != null) {
-                cancelDelegationToken(delegationToken);
-            }
-        } catch (IOException ioe) {
-            LOG.debug("Token cancel failed: " + ioe);
-        } finally {
-            super.close();
-        }
-    }
-
-    @Override
-    public FileStatus[] listStatus(final Path f) throws IOException {
-        statistics.incrementReadOps(1);
-
-        final HttpOpParam.Op op = GetOpParam.Op.LISTSTATUS;
-        return new FsPathResponseRunner<FileStatus[]>(op, f) {
-            @Override
-            FileStatus[] decodeResponse(Map<?, ?> json) {
-                final Map<?, ?> rootmap = (Map<?, ?>) json.get(FileStatus.class.getSimpleName() + "es");
-
-                final List<?> array = (List<?>)rootmap.get(FileStatus.class.getSimpleName());
-
-
-                //convert FileStatus
-                final FileStatus[] statuses = new FileStatus[array.size()];
-                int i = 0;
-                for (Object object : array) {
-                    final Map<?, ?> m = (Map<?, ?>) object;
-                    statuses[i++] = makeQualified(JsonUtil.toFileStatus(m, false), f);
-                }
-                return statuses;
-            }
-        }.run();
-    }
-
-    @Override
-    public Token<DelegationTokenIdentifier> getDelegationToken(
-            final String renewer) throws IOException {
-        final HttpOpParam.Op op = GetOpParam.Op.GETDELEGATIONTOKEN;
-        Token<DelegationTokenIdentifier> token =
-                new FsPathResponseRunner<Token<DelegationTokenIdentifier>>(
-                        op, null, new RenewerParam(renewer)) {
-                    @Override
-                    Token<DelegationTokenIdentifier> decodeResponse(Map<?, ?> json)
-                            throws IOException {
-                        return JsonUtil.toDelegationToken(json);
-                    }
-                }.run();
-        if (token != null) {
-            token.setService(tokenServiceName);
-        } else {
-            if (disallowFallbackToInsecureCluster) {
-                throw new AccessControlException(CANT_FALLBACK_TO_INSECURE_MSG);
-            }
-        }
-        return token;
-    }
-
-    @Override
-    public synchronized Token<?> getRenewToken() {
-        return delegationToken;
-    }
-
-    @Override
-    public synchronized long renewDelegationToken(final Token<?> token
-    ) throws IOException {
-        final HttpOpParam.Op op = PutOpParam.Op.RENEWDELEGATIONTOKEN;
-        return new FsPathResponseRunner<Long>(op, null,
-                new TokenArgumentParam(token.encodeToUrlString())) {
-            @Override
-            Long decodeResponse(Map<?, ?> json) throws IOException {
-                return ((Number) json.get("long")).longValue();
-            }
-        }.run();
-    }
-
-    @Override
-    public synchronized void cancelDelegationToken(final Token<?> token
-    ) throws IOException {
-        final HttpOpParam.Op op = PutOpParam.Op.CANCELDELEGATIONTOKEN;
-        new FsPathRunner(op, null,
-                new TokenArgumentParam(token.encodeToUrlString())
-        ).run();
-    }
-
-    @Override
-    public BlockLocation[] getFileBlockLocations(final FileStatus status,
-                                                 final long offset, final long length) throws IOException {
-        if (status == null) {
-            return null;
-        }
-        return getFileBlockLocations(status.getPath(), offset, length);
-    }
-
-    @Override
-    public BlockLocation[] getFileBlockLocations(final Path p,
-                                                 final long offset, final long length) throws IOException {
-        statistics.incrementReadOps(1);
-
-        final HttpOpParam.Op op = GetOpParam.Op.GET_BLOCK_LOCATIONS;
-        return new FsPathResponseRunner<BlockLocation[]>(op, p,
-                new OffsetParam(offset), new LengthParam(length)) {
-            @Override
-            BlockLocation[] decodeResponse(Map<?, ?> json) throws IOException {
-                return DFSUtil.locatedBlocks2Locations(
-                        JsonUtil.toLocatedBlocks(json));
-            }
-        }.run();
-    }
-
-    @Override
-    public void access(final Path path, final FsAction mode) throws IOException {
-        final HttpOpParam.Op op = GetOpParam.Op.CHECKACCESS;
-        new FsPathRunner(op, path, new FsActionParam(mode)).run();
-    }
-
-    @Override
-    public ContentSummary getContentSummary(final Path p) throws IOException {
-        statistics.incrementReadOps(1);
-
-        final HttpOpParam.Op op = GetOpParam.Op.GETCONTENTSUMMARY;
-        return new FsPathResponseRunner<ContentSummary>(op, p) {
-            @Override
-            ContentSummary decodeResponse(Map<?, ?> json) {
-                return JsonUtil.toContentSummary(json);
-            }
-        }.run();
-    }
-
-    @Override
-    public MD5MD5CRC32FileChecksum getFileChecksum(final Path p
-    ) throws IOException {
-        statistics.incrementReadOps(1);
-
-        final HttpOpParam.Op op = GetOpParam.Op.GETFILECHECKSUM;
-        return new FsPathResponseRunner<MD5MD5CRC32FileChecksum>(op, p) {
-            @Override
-            MD5MD5CRC32FileChecksum decodeResponse(Map<?, ?> json) throws IOException {
-                return JsonUtil.toMD5MD5CRC32FileChecksum(json);
-            }
-        }.run();
-    }
-
-    /**
-     * Resolve an HDFS URL into real INetSocketAddress. It works like a DNS
-     * resolver when the URL points to an non-HA cluster. When the URL points to
-     * an HA cluster with its logical name, the resolver further resolves the
-     * logical name(i.e., the authority in the URL) into real namenode addresses.
-     */
-    private InetSocketAddress[] resolveNNAddr() throws IOException {
-        Configuration conf = getConf();
-        final String scheme = uri.getScheme();
-
-        ArrayList<InetSocketAddress> ret = new ArrayList<InetSocketAddress>();
-
-        if (!HAUtil.isLogicalUri(conf, uri)) {
-            InetSocketAddress addr = NetUtils.createSocketAddr(uri.getAuthority(),
-                    getDefaultPort());
-            ret.add(addr);
-
-        } else {
-            Map<String, Map<String, InetSocketAddress>> addresses = DFSUtil
-                    .getHaNnWebHdfsAddresses(conf, scheme);
-
-            // Extract the entry corresponding to the logical name.
-            Map<String, InetSocketAddress> addrs = addresses.get(uri.getHost());
-            for (InetSocketAddress addr : addrs.values()) {
-                ret.add(addr);
-            }
-        }
-
-        InetSocketAddress[] r = new InetSocketAddress[ret.size()];
-        return ret.toArray(r);
-    }
-
-    @Override
-    public String getCanonicalServiceName() {
-        return tokenServiceName == null ? super.getCanonicalServiceName()
-                : tokenServiceName.toString();
-    }
-
-    @VisibleForTesting
-    InetSocketAddress[] getResolvedNNAddr() {
-        return nnAddrs;
-    }
-
-
-    static class OffsetUrlInputStream extends ByteRangeInputStream {
-        OffsetUrlInputStream(UnresolvedUrlOpener o, OffsetUrlOpener r)
-                throws IOException {
-            super(o, r);
-        }
-
-        /** Remove offset parameter before returning the resolved url. */
-        @Override
-        protected URL getResolvedUrl(final HttpURLConnection connection
-        ) throws MalformedURLException {
-            return removeOffsetParam(connection.getURL());
-        }
-    }
-
-    /**
-     * This class is for initialing a HTTP connection, connecting to server,
-     * obtaining a response, and also handling retry on failures.
-     */
-    abstract class AbstractRunner<T> {
-        protected final HttpOpParam.Op op;
-        private final boolean redirected;
-        protected ExcludeDatanodesParam excludeDatanodes = new ExcludeDatanodesParam("");
-        private boolean checkRetry;
-
-        protected AbstractRunner(final HttpOpParam.Op op, boolean redirected) {
-            this.op = op;
-            this.redirected = redirected;
-        }
-
-        abstract protected URL getUrl() throws IOException;
-
-        T run() throws IOException {
-
-            kerberosIdentity.reloginIfNecessary();
-
-            try {
-                // the entire lifecycle of the connection must be run inside the
-                // doAs to ensure authentication is performed correctly
-
-                return kerberosIdentity.doAs(new PrivilegedExceptionAction<T>() {
-                    @Override
-                    public T run() throws IOException {
-                        return runWithRetry();
-                    }
-                });
-
-            } catch (java.security.PrivilegedActionException e) {
-                throw new IOException(e);
-            }
-        }
-
-        /**
-         * Two-step requests redirected to a DN
-         *
-         * Create/Append:
-         * Step 1) Submit a Http request with neither auto-redirect nor data.
-         * Step 2) Submit another Http request with the URL from the Location header with data.
-         *
-         * The reason of having two-step create/append is for preventing clients to
-         * send out the data before the redirect. This issue is addressed by the
-         * "Expect: 100-continue" header in HTTP/1.1; see RFC 2616, Section 8.2.3.
-         * Unfortunately, there are software library bugs (e.g. Jetty 6 http server
-         * and Java 6 http client), which do not correctly implement "Expect:
-         * 100-continue". The two-step create/append is a temporary workaround for
-         * the software library bugs.
-         *
-         * Open/Checksum
-         * Also implements two-step connects for other operations redirected to
-         * a DN such as open and checksum
-         */
-        private HttpURLConnection connect(URL url) throws IOException {
-            //redirect hostname and port
-            String redirectHost = null;
-
-
-            // resolve redirects for a DN operation unless already resolved
-            if (op.getRedirect() && !redirected) {
-                final HttpOpParam.Op redirectOp =
-                        HttpOpParam.TemporaryRedirectOp.valueOf(op);
-                final HttpURLConnection conn = connect(redirectOp, url);
-                // application level proxy like httpfs might not issue a redirect
-                if (conn.getResponseCode() == op.getExpectedHttpResponseCode()) {
-                    return conn;
-                }
-                try {
-                    validateResponse(redirectOp, conn, false);
-                    url = new URL(conn.getHeaderField("Location"));
-                    redirectHost = url.getHost() + ":" + url.getPort();
-                } finally {
-                    conn.disconnect();
-                }
-            }
-            try {
-                return connect(op, url);
-            } catch (IOException ioe) {
-                if (redirectHost != null) {
-                    if (excludeDatanodes.getValue() != null) {
-                        excludeDatanodes = new ExcludeDatanodesParam(redirectHost + ","
-                                + excludeDatanodes.getValue());
-                    } else {
-                        excludeDatanodes = new ExcludeDatanodesParam(redirectHost);
-                    }
-                }
-                throw ioe;
-            }
-        }
-
-        private URLConnection openConnection(URL url) throws IOException {
-            final AuthenticatedURL.Token authToken = new AuthenticatedURL.Token();
-            try {
-                return new AuthenticatedURL(new KerberosIdentityAuthenticator(kerberosIdentity)).openConnection(url, authToken);
-            } catch (AuthenticationException e) {
-                throw new IOException(e);
-            }
-
-
-        }
-
-        private HttpURLConnection connect(final HttpOpParam.Op op, final URL url)
-                throws IOException {
-
-            final HttpURLConnection conn =
-
-                    (HttpURLConnection)
-                            openConnection(url);
-
-
-            final boolean doOutput = op.getDoOutput();
-            conn.setRequestMethod(op.getType().toString());
-            conn.setInstanceFollowRedirects(false);
-            switch (op.getType()) {
-                // if not sending a message body for a POST or PUT operation, need
-                // to ensure the server/proxy knows this
-                case POST:
-                case PUT: {
-                    conn.setDoOutput(true);
-                    if (!doOutput) {
-                        // explicitly setting content-length to 0 won't do spnego!!
-                        // opening and closing the stream will send "Content-Length: 0"
-                        conn.getOutputStream().close();
-                    } else {
-                        conn.setRequestProperty("Content-Type",
-                                MediaType.APPLICATION_OCTET_STREAM);
-                        conn.setChunkedStreamingMode(32 << 10); //32kB-chunk
-                    }
-                    break;
-                }
-                default: {
-                    conn.setDoOutput(doOutput);
-                    break;
-                }
-            }
-            conn.connect();
-            return conn;
-        }
-
-        private T runWithRetry() throws IOException {
-            /**
-             * Do the real work.
-             *
-             * There are three cases that the code inside the loop can throw an
-             * IOException:
-             *
-             * <ul>
-             * <li>The connection has failed (e.g., ConnectException,
-             * @see FailoverOnNetworkExceptionRetry for more details)</li>
-             * <li>The namenode enters the standby state (i.e., StandbyException).</li>
-             * <li>The server returns errors for the command (i.e., RemoteException)</li>
-             * </ul>
-             *
-             * The call to shouldRetry() will conduct the retry policy. The policy
-             * examines the exception and swallows it if it decides to rerun the work.
-             */
-            for (int retry = 0; ; retry++) {
-                checkRetry = !redirected;
-                final URL url = getUrl();
-                LOG.info("Calling " + url);
-                try {
-                    final HttpURLConnection conn = connect(url);
-                    // output streams will validate on close
-                    if (!op.getDoOutput()) {
-                        validateResponse(op, conn, false);
-                    }
-                    return getResponse(conn);
-                } catch (AccessControlException ace) {
-                    // no retries for auth failures
-                    throw ace;
-                } catch (SecretManager.InvalidToken it) {
-                    // try to replace the expired token with a new one.  the attempt
-                    // to acquire a new token must be outside this operation's retry
-                    // so if it fails after its own retries, this operation fails too.
-                    if (op.getRequireAuth() || !replaceExpiredDelegationToken()) {
-                        throw it;
-                    }
-                } catch (IOException ioe) {
-                    shouldRetry(ioe, retry);
-                }
-            }
-        }
-
-        private void shouldRetry(final IOException ioe, final int retry
-        ) throws IOException {
-            InetSocketAddress nnAddr = getCurrentNNAddr();
-            if (checkRetry) {
-                try {
-                    final RetryPolicy.RetryAction a = retryPolicy.shouldRetry(
-                            ioe, retry, 0, true);
-
-                    boolean isRetry = a.action == RetryPolicy.RetryAction.RetryDecision.RETRY;
-                    boolean isFailoverAndRetry =
-                            a.action == RetryPolicy.RetryAction.RetryDecision.FAILOVER_AND_RETRY;
-
-                    if (isRetry || isFailoverAndRetry) {
-                        LOG.info("Retrying connect to namenode: " + nnAddr
-                                + ". Already tried " + retry + " time(s); retry policy is "
-                                + retryPolicy + ", delay " + a.delayMillis + "ms.");
-
-                        if (isFailoverAndRetry) {
-                            resetStateToFailOver();
+            return kerberosIdentity.doAs(
+                    new PrivilegedExceptionAction<Token<?>>() {
+                        @Override
+                        public Token<?> run() throws Exception {
+                            return authURL.getDelegationToken(uri.toURL(), authToken,
+                                    renewer);
                         }
-
-                        Thread.sleep(a.delayMillis);
-                        return;
                     }
-                } catch (Exception e) {
-                    LOG.warn("Original exception is ", ioe);
-                    throw toIOException(e);
-                }
-            }
-            throw toIOException(ioe);
-        }
-
-        abstract T getResponse(HttpURLConnection conn) throws IOException;
-    }
-
-    /**
-     * Abstract base class to handle path-based operations with params
-     */
-    abstract class AbstractFsPathRunner<T> extends AbstractRunner<T> {
-        private final Path fspath;
-        private final Param<?, ?>[] parameters;
-
-        AbstractFsPathRunner(final HttpOpParam.Op op, final Path fspath,
-                             Param<?, ?>... parameters) {
-            super(op, false);
-            this.fspath = fspath;
-            this.parameters = parameters;
-        }
-
-        AbstractFsPathRunner(final HttpOpParam.Op op, Param<?, ?>[] parameters,
-                             final Path fspath) {
-            super(op, false);
-            this.fspath = fspath;
-            this.parameters = parameters;
-        }
-
-        @Override
-        protected URL getUrl() throws IOException {
-            if (excludeDatanodes.getValue() != null) {
-                Param<?, ?>[] tmpParam = new Param<?, ?>[parameters.length + 1];
-                System.arraycopy(parameters, 0, tmpParam, 0, parameters.length);
-                tmpParam[parameters.length] = excludeDatanodes;
-
-                return toUrl(op, fspath, tmpParam);
+            );
+        } catch (Exception ex) {
+            if (ex instanceof IOException) {
+                throw (IOException) ex;
             } else {
-
-                return toUrl(op, fspath, parameters);
+                throw new IOException(ex);
             }
         }
     }
 
-    /**
-     * Default path-based implementation expects no json response
-     */
-    class FsPathRunner extends AbstractFsPathRunner<Void> {
-        FsPathRunner(Op op, Path fspath, Param<?, ?>... parameters) {
-            super(op, fspath, parameters);
-        }
-
-        @Override
-        Void getResponse(HttpURLConnection conn) throws IOException {
-            return null;
-        }
-    }
-
-    /**
-     * Handle path-based operations with a json response
-     */
-    abstract class FsPathResponseRunner<T> extends AbstractFsPathRunner<T> {
-        FsPathResponseRunner(final HttpOpParam.Op op, final Path fspath,
-                             Param<?, ?>... parameters) {
-            super(op, fspath, parameters);
-        }
-
-        FsPathResponseRunner(final HttpOpParam.Op op, Param<?, ?>[] parameters,
-                             final Path fspath) {
-            super(op, parameters, fspath);
-        }
-
-        @Override
-        final T getResponse(HttpURLConnection conn) throws IOException {
-            try {
-                final Map<?, ?> json = jsonParse(conn, false);
-                if (json == null) {
-                    // match exception class thrown by parser
-                    throw new IllegalStateException("Missing response");
-                }
-                return decodeResponse(json);
-            } catch (IOException ioe) {
-                throw ioe;
-            } catch (Exception e) { // catch json parser errors
-                final IOException ioe =
-                        new IOException("Response decoding failure: " + e.toString(), e);
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug(ioe);
-                }
-                throw ioe;
-            } finally {
-                conn.disconnect();
-            }
-        }
-
-        abstract T decodeResponse(Map<?, ?> json) throws IOException;
-    }
-
-    /**
-     * Handle path-based operations with json boolean response
-     */
-    class FsPathBooleanRunner extends FsPathResponseRunner<Boolean> {
-        FsPathBooleanRunner(Op op, Path fspath, Param<?, ?>... parameters) {
-            super(op, fspath, parameters);
-        }
-
-        @Override
-        Boolean decodeResponse(Map<?, ?> json) throws IOException {
-            return (Boolean) json.get("boolean");
-        }
-    }
-
-    /**
-     * Handle create/append output streams
-     */
-    class FsPathOutputStreamRunner extends AbstractFsPathRunner<FSDataOutputStream> {
-        private final int bufferSize;
-
-        FsPathOutputStreamRunner(Op op, Path fspath, int bufferSize,
-                                 Param<?, ?>... parameters) {
-            super(op, fspath, parameters);
-            this.bufferSize = bufferSize;
-        }
-
-        @Override
-        FSDataOutputStream getResponse(final HttpURLConnection conn)
-                throws IOException {
-            return new FSDataOutputStream(new BufferedOutputStream(
-                    conn.getOutputStream(), bufferSize), statistics) {
-                @Override
-                public void close() throws IOException {
-                    try {
-                        super.close();
-                    } finally {
-                        try {
-                            validateResponse(op, conn, true);
-                        } finally {
-                            conn.disconnect();
+    public long renewDelegationToken(final Token<?> token) throws IOException {
+        try {
+            return kerberosIdentity.doAs(
+                    new PrivilegedExceptionAction<Long>() {
+                        @Override
+                        public Long run() throws Exception {
+                            return authURL.renewDelegationToken(uri.toURL(), authToken);
                         }
                     }
-                }
-            };
+            );
+        } catch (Exception ex) {
+            if (ex instanceof IOException) {
+                throw (IOException) ex;
+            } else {
+                throw new IOException(ex);
+            }
         }
     }
 
-    class FsPathConnectionRunner extends AbstractFsPathRunner<HttpURLConnection> {
-        FsPathConnectionRunner(Op op, Path fspath, Param<?, ?>... parameters) {
-            super(op, fspath, parameters);
-        }
+    public void cancelDelegationToken(final Token<?> token) throws IOException {
+        authURL.cancelDelegationToken(uri.toURL(), authToken);
+    }
 
-        @Override
-        HttpURLConnection getResponse(final HttpURLConnection conn)
-                throws IOException {
-            return conn;
+    @Override
+    public Token<?> getRenewToken() {
+        return null; //TODO : for renewer
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T extends TokenIdentifier> void setDelegationToken(Token<T> token) {
+        //TODO : for renewer
+    }
+
+    @Override
+    public void setXAttr(Path f, String name, byte[] value,
+                         EnumSet<XAttrSetFlag> flag) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.SETXATTR.toString());
+        params.put(XATTR_NAME_PARAM, name);
+        if (value != null) {
+            params.put(XATTR_VALUE_PARAM,
+                    XAttrCodec.encodeValue(value, XAttrCodec.HEX));
         }
+        params.put(XATTR_SET_FLAG_PARAM, EnumSetParam.toString(flag));
+        HttpURLConnection conn = getConnection(Operation.SETXATTR.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+    }
+
+    @Override
+    public byte[] getXAttr(Path f, String name) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.GETXATTRS.toString());
+        params.put(XATTR_NAME_PARAM, name);
+        HttpURLConnection conn = getConnection(Operation.GETXATTRS.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        Map<String, byte[]> xAttrs = createXAttrMap(
+                (JSONArray) json.get(XATTRS_JSON));
+        return xAttrs != null ? xAttrs.get(name) : null;
     }
 
     /**
-     * Used by open() which tracks the resolved url itself
+     * Convert xAttrs json to xAttrs map
      */
-    final class URLRunner extends AbstractRunner<HttpURLConnection> {
-        private final URL url;
-
-        protected URLRunner(final HttpOpParam.Op op, final URL url, boolean redirected) {
-            super(op, redirected);
-            this.url = url;
+    private Map<String, byte[]> createXAttrMap(JSONArray jsonArray)
+            throws IOException {
+        Map<String, byte[]> xAttrs = Maps.newHashMap();
+        for (Object obj : jsonArray) {
+            JSONObject jsonObj = (JSONObject) obj;
+            final String name = (String) jsonObj.get(XATTR_NAME_JSON);
+            final byte[] value = XAttrCodec.decodeValue(
+                    (String) jsonObj.get(XATTR_VALUE_JSON));
+            xAttrs.put(name, value);
         }
 
-        @Override
-        protected URL getUrl() {
-            return url;
-        }
+        return xAttrs;
+    }
 
-        @Override
-        HttpURLConnection getResponse(HttpURLConnection conn) throws IOException {
-            return conn;
+    /**
+     * Convert xAttr names json to names list
+     */
+    private List<String> createXAttrNames(String xattrNamesStr) throws IOException {
+        JSONParser parser = new JSONParser();
+        JSONArray jsonArray;
+        try {
+            jsonArray = (JSONArray) parser.parse(xattrNamesStr);
+            List<String> names = Lists.newArrayListWithCapacity(jsonArray.size());
+            for (Object name : jsonArray) {
+                names.add((String) name);
+            }
+            return names;
+        } catch (ParseException e) {
+            throw new IOException("JSON parser error, " + e.getMessage(), e);
         }
     }
 
-    // use FsPathConnectionRunner to ensure retries for InvalidTokens
-    class UnresolvedUrlOpener extends ByteRangeInputStream.URLOpener {
-        private final FsPathConnectionRunner runner;
+    @Override
+    public Map<String, byte[]> getXAttrs(Path f) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.GETXATTRS.toString());
+        HttpURLConnection conn = getConnection(Operation.GETXATTRS.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        return createXAttrMap((JSONArray) json.get(XATTRS_JSON));
+    }
 
-        UnresolvedUrlOpener(FsPathConnectionRunner runner) {
-            super(null);
-            this.runner = runner;
+    @Override
+    public Map<String, byte[]> getXAttrs(Path f, List<String> names)
+            throws IOException {
+        Preconditions.checkArgument(names != null && !names.isEmpty(),
+                "XAttr names cannot be null or empty.");
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.GETXATTRS.toString());
+        Map<String, List<String>> multiValuedParams = Maps.newHashMap();
+        multiValuedParams.put(XATTR_NAME_PARAM, names);
+        HttpURLConnection conn = getConnection(Operation.GETXATTRS.getMethod(),
+                params, multiValuedParams, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        return createXAttrMap((JSONArray) json.get(XATTRS_JSON));
+    }
+
+    @Override
+    public List<String> listXAttrs(Path f) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.LISTXATTRS.toString());
+        HttpURLConnection conn = getConnection(Operation.LISTXATTRS.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+        JSONObject json = (JSONObject) DLFileSystemUtils.jsonParse(conn);
+        return createXAttrNames((String) json.get(XATTRNAMES_JSON));
+    }
+
+    @Override
+    public void removeXAttr(Path f, String name) throws IOException {
+        Map<String, String> params = new HashMap<String, String>();
+        params.put(OP_PARAM, Operation.REMOVEXATTR.toString());
+        params.put(XATTR_NAME_PARAM, name);
+        HttpURLConnection conn = getConnection(Operation.REMOVEXATTR.getMethod(),
+                params, f, true);
+        HttpExceptionUtils.validateResponse(conn, HttpURLConnection.HTTP_OK);
+    }
+
+    public static enum FILE_TYPE {
+        FILE, DIRECTORY, SYMLINK;
+
+        public static FILE_TYPE getType(FileStatus fileStatus) {
+            if (fileStatus.isFile()) {
+                return FILE;
+            }
+            if (fileStatus.isDirectory()) {
+                return DIRECTORY;
+            }
+            if (fileStatus.isSymlink()) {
+                return SYMLINK;
+            }
+            throw new IllegalArgumentException("Could not determine filetype for: " +
+                    fileStatus.getPath());
+        }
+    }
+
+    @InterfaceAudience.Private
+    public static enum Operation {
+        OPEN(HTTP_GET), GETFILESTATUS(HTTP_GET), LISTSTATUS(HTTP_GET),
+        GETHOMEDIRECTORY(HTTP_GET), GETCONTENTSUMMARY(HTTP_GET),
+        GETFILECHECKSUM(HTTP_GET), GETFILEBLOCKLOCATIONS(HTTP_GET),
+        INSTRUMENTATION(HTTP_GET), GETACLSTATUS(HTTP_GET),
+        APPEND(HTTP_POST), CONCAT(HTTP_POST),
+        CREATE(HTTP_PUT), MKDIRS(HTTP_PUT), RENAME(HTTP_PUT), SETOWNER(HTTP_PUT),
+        SETPERMISSION(HTTP_PUT), SETREPLICATION(HTTP_PUT), SETTIMES(HTTP_PUT),
+        MODIFYACLENTRIES(HTTP_PUT), REMOVEACLENTRIES(HTTP_PUT),
+        REMOVEDEFAULTACL(HTTP_PUT), REMOVEACL(HTTP_PUT), SETACL(HTTP_PUT),
+        DELETE(HTTP_DELETE), SETXATTR(HTTP_PUT), GETXATTRS(HTTP_GET),
+        REMOVEXATTR(HTTP_PUT), LISTXATTRS(HTTP_GET);
+
+        private String httpMethod;
+
+        Operation(String httpMethod) {
+            this.httpMethod = httpMethod;
+        }
+
+        public String getMethod() {
+            return httpMethod;
+        }
+
+    }
+
+    /**
+     * HttpFSServer subclass of the <code>FSDataInputStream</code>.
+     * <p/>
+     * This implementation does not support the
+     * <code>PositionReadable</code> and <code>Seekable</code> methods.
+     */
+    private static class HttpFSDataInputStream extends BufferedInputStream implements Seekable, PositionedReadable {
+
+
+        public HttpFSDataInputStream(InputStream inputStream, int size) {
+            super(inputStream, size);
         }
 
         @Override
-        protected HttpURLConnection connect(long offset, boolean resolved)
+        public int read(long position, byte[] buffer, int offset, int length) throws IOException {
+            skip(position);
+            return read(buffer, offset, length);
+        }
+
+        @Override
+        public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+            read(position, buffer, offset, length);
+        }
+
+        @Override
+        public void readFully(long position, byte[] buffer) throws IOException {
+            skip(position);
+            read(buffer);
+        }
+
+        @Override
+        public void seek(long pos) throws IOException {
+            skip(pos);
+        }
+
+        @Override
+        public long getPos() throws IOException {
+            return pos;
+        }
+
+        @Override
+        public boolean seekToNewSource(long targetPos) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+    }
+
+    /**
+     * HttpFSServer subclass of the <code>FSDataOutputStream</code>.
+     * <p/>
+     * This implementation closes the underlying HTTP connection validating the Http connection status
+     * at closing time.
+     */
+    private static class HttpFSDataOutputStream extends FSDataOutputStream {
+        private HttpURLConnection conn;
+        private int closeStatus;
+
+        public HttpFSDataOutputStream(HttpURLConnection conn, OutputStream out, int closeStatus, Statistics stats)
                 throws IOException {
-            assert offset == 0;
-            HttpURLConnection conn = runner.run();
-            setURL(conn.getURL());
-            return conn;
-        }
-    }
-
-    class OffsetUrlOpener extends ByteRangeInputStream.URLOpener {
-        OffsetUrlOpener(final URL url) {
-            super(url);
+            super(out, stats);
+            this.conn = conn;
+            this.closeStatus = closeStatus;
         }
 
-        /** Setup offset url and connect. */
         @Override
-        protected HttpURLConnection connect(final long offset,
-                                            final boolean resolved) throws IOException {
-            final URL offsetUrl = offset == 0L ? url
-                    : new URL(url + "&" + new OffsetParam(offset));
-            return new URLRunner(GetOpParam.Op.OPEN, offsetUrl, resolved).run();
+        public void close() throws IOException {
+            try {
+                super.close();
+            } finally {
+                HttpExceptionUtils.validateResponse(conn, closeStatus);
+            }
         }
+
     }
 }
