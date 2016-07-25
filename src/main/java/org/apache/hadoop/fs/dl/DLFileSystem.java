@@ -36,6 +36,7 @@ import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.web.ByteRangeInputStream;
+import org.apache.hadoop.hdfs.web.JsonUtil;
 import org.apache.hadoop.hdfs.web.URLConnectionFactory;
 import org.apache.hadoop.hdfs.web.WebHdfsFileSystem;
 import org.apache.hadoop.hdfs.web.resources.*;
@@ -176,7 +177,7 @@ public class DLFileSystem extends FileSystem
             // the NN mangles these exceptions but the DN does not and may need
             // to re-fetch a token if either report the token is expired
             if (re.getMessage() != null && re.getMessage().startsWith(
-                    SecurityUtil.FAILED_TO_GET_UGI_MSG_HEADER)) {
+                    "Failed to obtain user group information:")) {
                 String[] parts = re.getMessage().split(":\\s+", 3);
                 re = new RemoteException(parts[1], parts[2]);
                 re = ((RemoteException) re).unwrapRemoteException(SecretManager.InvalidToken.class);
@@ -212,7 +213,7 @@ public class DLFileSystem extends FileSystem
         if (query == null) {
             return url;
         }
-        final String lower = StringUtils.toLowerCase(query);
+        final String lower = query.toLowerCase();
         if (!lower.startsWith(OFFSET_PARAM_PREFIX)
                 && !lower.contains("&" + OFFSET_PARAM_PREFIX)) {
             return url;
@@ -223,7 +224,7 @@ public class DLFileSystem extends FileSystem
         for (final StringTokenizer st = new StringTokenizer(query, "&");
              st.hasMoreTokens(); ) {
             final String token = st.nextToken();
-            if (!StringUtils.toLowerCase(token).startsWith(OFFSET_PARAM_PREFIX)) {
+            if (!token.toLowerCase().startsWith(OFFSET_PARAM_PREFIX)) {
                 if (b == null) {
                     b = new StringBuilder("?").append(token);
                 } else {
@@ -359,7 +360,7 @@ public class DLFileSystem extends FileSystem
             throw new IOException("The Datalake requires a home directory to be configured in the fs.dl.impl.homeDirectory configuration variable. This is in the form /data_lake/dlxxxx");
 
         this.workingDir = getHomeDirectory();
-        this.canRefreshDelegationToken = UserGroupInformation.isSecurityEnabled();
+        this.canRefreshDelegationToken = false; //TODO: try to use delegation tokens as well.
         this.disallowFallbackToInsecureCluster = !conf.getBoolean(
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_KEY,
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_DEFAULT);
@@ -517,7 +518,7 @@ public class DLFileSystem extends FileSystem
         if (LOG.isTraceEnabled()) {
             LOG.trace("url=" + url);
         }
-        LOG.info("toURL=" + url);
+
         return url;
     }
 
@@ -530,7 +531,7 @@ public class DLFileSystem extends FileSystem
 
     private HdfsFileStatus getHdfsFileStatus(Path f) throws IOException {
 
-        LOG.info("getHdfsFileStatus " + f);
+
 
         final HttpOpParam.Op op = GetOpParam.Op.GETFILESTATUS;
         HdfsFileStatus status = new FsPathResponseRunner<HdfsFileStatus>(op, f) {
@@ -855,14 +856,6 @@ public class DLFileSystem extends FileSystem
     }
 
     @Override
-    public boolean truncate(Path f, long newLength) throws IOException {
-        statistics.incrementWriteOps(1);
-
-        final HttpOpParam.Op op = PostOpParam.Op.TRUNCATE;
-        return new FsPathBooleanRunner(op, f, new NewLengthParam(newLength)).run();
-    }
-
-    @Override
     public boolean delete(Path f, boolean recursive) throws IOException {
         final HttpOpParam.Op op = DeleteOpParam.Op.DELETE;
         return new FsPathBooleanRunner(op, f,
@@ -904,8 +897,9 @@ public class DLFileSystem extends FileSystem
             @Override
             FileStatus[] decodeResponse(Map<?, ?> json) {
                 final Map<?, ?> rootmap = (Map<?, ?>) json.get(FileStatus.class.getSimpleName() + "es");
-                final List<?> array = JsonUtil.getList(
-                        rootmap, FileStatus.class.getSimpleName());
+
+                final List<?> array = (List<?>)rootmap.get(FileStatus.class.getSimpleName());
+
 
                 //convert FileStatus
                 final FileStatus[] statuses = new FileStatus[array.size()];
@@ -1103,20 +1097,6 @@ public class DLFileSystem extends FileSystem
         abstract protected URL getUrl() throws IOException;
 
         T run() throws IOException {
-
-            /*
-            UserGroupInformation connectUgi = ugi.getRealUser();
-            if (connectUgi == null) {
-                connectUgi = ugi;
-            }
-
-            UserGroupInformation connectUgi=ugi;
-            LOG.info("AbstractRunner: connectUGI:"+connectUgi);
-
-            if (op.getRequireAuth()) {
-                connectUgi.checkTGTAndReloginFromKeytab();
-            }
-            */
 
             kerberosIdentity.reloginIfNecessary();
 
@@ -1348,12 +1328,9 @@ public class DLFileSystem extends FileSystem
                 System.arraycopy(parameters, 0, tmpParam, 0, parameters.length);
                 tmpParam[parameters.length] = excludeDatanodes;
 
-                LOG.info("AbstractFsPathRunner::getUrl Op=" + op + " fspath=" + fspath + " params=" + tmpParam);
-
                 return toUrl(op, fspath, tmpParam);
             } else {
 
-                LOG.info("AbstractFsPathRunner::getUrl Op=" + op + " fspath=" + fspath + " params=" + parameters);
                 return toUrl(op, fspath, parameters);
             }
         }
