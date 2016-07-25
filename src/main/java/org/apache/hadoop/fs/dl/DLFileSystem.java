@@ -48,7 +48,6 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.SecurityUtil;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authentication.client.AuthenticatedURL;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
 import org.apache.hadoop.security.token.SecretManager;
@@ -57,7 +56,6 @@ import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.security.token.TokenSelector;
 import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenSelector;
 import org.apache.hadoop.util.Progressable;
-import org.apache.hadoop.util.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.ws.rs.core.MediaType;
@@ -530,15 +528,18 @@ public class DLFileSystem extends FileSystem
 
     private HdfsFileStatus getHdfsFileStatus(Path f) throws IOException {
 
-
-
         final HttpOpParam.Op op = GetOpParam.Op.GETFILESTATUS;
-        HdfsFileStatus status = new FsPathResponseRunner<HdfsFileStatus>(op, f) {
-            @Override
-            HdfsFileStatus decodeResponse(Map<?, ?> json) {
-                return JsonUtil.toFileStatus(json, true);
-            }
-        }.run();
+        HdfsFileStatus status;
+        try {
+            status = new FsPathResponseRunner<HdfsFileStatus>(op, f) {
+                @Override
+                HdfsFileStatus decodeResponse(Map<?, ?> json) {
+                    return JsonUtil.toFileStatus(json, true);
+                }
+            }.run();
+        } catch (IOException e) {
+            throw new FileNotFoundException("File does not exist: " + f);
+        }
         if (status == null) {
             throw new FileNotFoundException("File does not exist: " + f);
         }

@@ -32,7 +32,7 @@ public class KerberosIdentity {
 
     public static final Log LOG = LogFactory.getLog(KerberosIdentity.class);
 
-    private final long DEFAULT_RELOGIN_TIME = 1000 * 60 * 60 * 5;
+    private final long DEFAULT_RELOGIN_TIME = 1000 * 60 * 60;//every hour
     private long reloginTime;
 
     private Subject subject;
