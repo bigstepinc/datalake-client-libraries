@@ -5,7 +5,7 @@ This is usefull if you want to be able to interact with datasets stored in Bigst
 
 To use, first copy the jar to:
 
-1.Vanilla Hadoop  **hadoop-2.7.x/share/hadoop/tools/**
+1.Vanilla Hadoop  **hadoop-2.7.x/share/hadoop/common/**
 
 2.CDH  **/opt/cloudera/parcels/CDH/lib/hadoop/**
 
