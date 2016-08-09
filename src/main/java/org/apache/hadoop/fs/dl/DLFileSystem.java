@@ -48,7 +48,6 @@ import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.net.NetUtils;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.SecurityUtil;
-import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authentication.client.AuthenticatedURL;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
 import org.apache.hadoop.security.token.SecretManager;
@@ -359,7 +358,7 @@ public class DLFileSystem extends FileSystem
             throw new IOException("The Datalake requires a home directory to be configured in the fs.dl.impl.homeDirectory configuration variable. This is in the form /data_lake/dlxxxx");
 
         this.workingDir = getHomeDirectory();
-        this.canRefreshDelegationToken = UserGroupInformation.isSecurityEnabled();
+        this.canRefreshDelegationToken = false; //TODO: try to use delegation tokens as well.
         this.disallowFallbackToInsecureCluster = !conf.getBoolean(
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_KEY,
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_DEFAULT);
@@ -517,7 +516,7 @@ public class DLFileSystem extends FileSystem
         if (LOG.isTraceEnabled()) {
             LOG.trace("url=" + url);
         }
-        LOG.info("toURL=" + url);
+
         return url;
     }
 
@@ -530,7 +529,6 @@ public class DLFileSystem extends FileSystem
 
     private HdfsFileStatus getHdfsFileStatus(Path f) throws IOException {
 
-        LOG.info("getHdfsFileStatus " + f);
 
         final HttpOpParam.Op op = GetOpParam.Op.GETFILESTATUS;
         HdfsFileStatus status = new FsPathResponseRunner<HdfsFileStatus>(op, f) {
@@ -969,6 +967,8 @@ public class DLFileSystem extends FileSystem
         ).run();
     }
 
+    /*
+    //COMMENTED AS THIS IS NOT IMPLEMENTED BY THE HTTPFS SERVICE
     @Override
     public BlockLocation[] getFileBlockLocations(final FileStatus status,
                                                  final long offset, final long length) throws IOException {
@@ -993,6 +993,7 @@ public class DLFileSystem extends FileSystem
             }
         }.run();
     }
+    */
 
     @Override
     public void access(final Path path, final FsAction mode) throws IOException {
@@ -1104,20 +1105,6 @@ public class DLFileSystem extends FileSystem
 
         T run() throws IOException {
 
-            /*
-            UserGroupInformation connectUgi = ugi.getRealUser();
-            if (connectUgi == null) {
-                connectUgi = ugi;
-            }
-
-            UserGroupInformation connectUgi=ugi;
-            LOG.info("AbstractRunner: connectUGI:"+connectUgi);
-
-            if (op.getRequireAuth()) {
-                connectUgi.checkTGTAndReloginFromKeytab();
-            }
-            */
-
             kerberosIdentity.reloginIfNecessary();
 
             try {
@@ -1132,7 +1119,11 @@ public class DLFileSystem extends FileSystem
                 });
 
             } catch (java.security.PrivilegedActionException e) {
-                throw new IOException(e);
+                Exception wrappedException = e.getException();
+                if (wrappedException instanceof IOException)
+                    throw (IOException) wrappedException;
+
+                throw new IOException(wrappedException);
             }
         }
 
@@ -1348,12 +1339,9 @@ public class DLFileSystem extends FileSystem
                 System.arraycopy(parameters, 0, tmpParam, 0, parameters.length);
                 tmpParam[parameters.length] = excludeDatanodes;
 
-                LOG.info("AbstractFsPathRunner::getUrl Op=" + op + " fspath=" + fspath + " params=" + tmpParam);
-
                 return toUrl(op, fspath, tmpParam);
             } else {
 
-                LOG.info("AbstractFsPathRunner::getUrl Op=" + op + " fspath=" + fspath + " params=" + parameters);
                 return toUrl(op, fspath, parameters);
             }
         }
