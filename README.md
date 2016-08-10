@@ -36,6 +36,22 @@ first add the following to **core-site.xml**:
   <name>fs.dl.impl.kerberosRealm</name>
   <value>bigstep.io</value>
 </property>
+
+<property>
+  <name>fs.dl.impl.kerberosRealm</name>
+  <value>bigstep.io</value>
+</property>
+
+<!-- optional -->
+<property>
+  <name>fs.dl.impl.defaultFilePermissions</name>
+  <value>00640</value>
+</property>
+<!-- optional -->
+<property>
+  <name>fs.dl.impl.defaultUMask</name>
+  <value>007</value>
+</property>
 ```
 
 Make sure that the jar is available on all the cluster machines. Also the keytab must be reachable to yarn user (eg: not /root).

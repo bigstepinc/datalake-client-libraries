@@ -36,7 +36,6 @@ import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.web.ByteRangeInputStream;
-import org.apache.hadoop.hdfs.web.URLConnectionFactory;
 import org.apache.hadoop.hdfs.web.resources.*;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam.Op;
 import org.apache.hadoop.io.Text;
@@ -68,32 +67,48 @@ import java.security.Principal;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
 
-/** A FileSystem for HDFS over the web. */
+/**
+ * A FileSystem for HDFS over the web.
+ */
 public class DLFileSystem extends FileSystem
         implements DelegationTokenRenewer.Renewable, TokenAspect.TokenManagementDelegator {
     public static final Log LOG = LogFactory.getLog(DLFileSystem.class);
-    /** File System URI: {SCHEME}://namenode:port/path/to/file */
+    /**
+     * File System URI: {SCHEME}://namenode:port/path/to/file
+     */
     public static final String SCHEME = "webhdfs";
-    /** WebHdfs version. */
+    /**
+     * WebHdfs version.
+     */
     public static final int VERSION = 1;
-    /** Http URI: http://namenode:port/{PATH_PREFIX}/path/to/file */
+    /**
+     * Http URI: http://namenode:port/{PATH_PREFIX}/path/to/file
+     */
     public static final String PATH_PREFIX = "/" + SCHEME + "/v" + VERSION;
-    /** Delegation token kind */
+    /**
+     * Delegation token kind
+     */
     public static final Text TOKEN_KIND = new Text("WEBHDFS delegation");
     @VisibleForTesting
     public static final String CANT_FALLBACK_TO_INSECURE_MSG =
             "The client is configured to only allow connecting to secure cluster";
-    private static final String OFFSET_PARAM_PREFIX = OffsetParam.NAME + "=";
-    private final String KERBEROS_PRINCIPAL_CONFIG_NAME = "fs.dl.impl.kerberosPrincipal";
-    private final String KERBEROS_KEYTAB_CONFIG_NAME = "fs.dl.impl.kerberosKeytab";
-    private final String KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
+    public static final String OFFSET_PARAM_PREFIX = OffsetParam.NAME + "=";
 
-    private final String DEFAULT_FILE_PERMISSIONS = "00640";
-    private final String DEFAULT_DIRECTORY_PERMISSIONS = "00750";
-    private final String DEFAULT_UMASK = "00007";
+    public static final String FS_DL_IMPL_HOME_DIRECTORY = "fs.dl.impl.homeDirectory";
+    public static final String FS_DL_IMPL_DEFAULT_FILE_PERMISSIONS = "fs.dl.impl.defaultFilePermissions";
+    public static final String FS_DL_IMPL_DEFAULT_UMASK = "fs.dl.impl.defaultUMask";
+    public static final String FS_DL_IMPL_DEFAULT_ENDPOINT = "fs.dl.impl.defaultEndpoint";
+    public static final String FS_DL_IMPL_KERBEROS_PRINCIPAL_CONFIG_NAME = "fs.dl.impl.kerberosPrincipal";
+    public static final String FS_DL_IMPL_KERBEROS_KEYTAB_CONFIG_NAME = "fs.dl.impl.kerberosKeytab";
+    public static final String FS_DL_IMPL_KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
 
-    /** Default connection factory may be overridden in tests to use smaller timeout values */
-    protected URLConnectionFactory connectionFactory;
+    private static final String DEFAULT_FILE_PERMISSIONS = "00640";
+    private static final String DEFAULT_UMASK = "00007";
+
+    /**
+     * Default connection factory may be overridden in tests to use smaller timeout values
+     */
+
     protected Text tokenServiceName;
     TokenSelector<DelegationTokenIdentifier> tokenSelector =
             new AbstractDelegationTokenSelector<DelegationTokenIdentifier>(getTokenKind()) {
@@ -114,10 +129,12 @@ public class DLFileSystem extends FileSystem
     private String homeDirectory;
 
     private short defaultFilePermissions;
-    private short defaultDirectoryPermissions;
+
     private short defaultUMask;
 
-    /** Is WebHDFS enabled in conf? */
+    /**
+     * Is WebHDFS enabled in conf?
+     */
     public static boolean isEnabled(final Configuration conf, final Log log) {
         final boolean b = conf.getBoolean(DFSConfigKeys.DFS_WEBHDFS_ENABLED_KEY,
                 DFSConfigKeys.DFS_WEBHDFS_ENABLED_DEFAULT);
@@ -194,7 +211,7 @@ public class DLFileSystem extends FileSystem
 
     /**
      * Covert an exception to an IOException.
-     *
+     * <p>
      * For a non-IOException, wrap it with IOException.
      * For a RemoteException, unwrap it.
      * For an IOException which is not a RemoteException, return it.
@@ -212,7 +229,9 @@ public class DLFileSystem extends FileSystem
         return ((RemoteException) ioe).unwrapRemoteException();
     }
 
-    /** Remove offset parameter, if there is any, from the url */
+    /**
+     * Remove offset parameter, if there is any, from the url
+     */
     static URL removeOffsetParam(final URL url) throws MalformedURLException {
         String query = url.getQuery();
         if (query == null) {
@@ -268,19 +287,20 @@ public class DLFileSystem extends FileSystem
 
     /**
      * Returns the UGI as configured in the configuration. Currently only supports the keytab implementation.
+     *
      * @param conf
      * @return
      */
     private KerberosIdentity initialiseKerberosIdentity(Configuration conf) throws IOException {
-        String kerberosPrincipal = conf.get(KERBEROS_PRINCIPAL_CONFIG_NAME);
+        String kerberosPrincipal = conf.get(FS_DL_IMPL_KERBEROS_PRINCIPAL_CONFIG_NAME);
         if (kerberosPrincipal == null)
             throw new IOException("Datalake initialisation requires a kerberos principal to be configured using the fs.dl.impl.kerberosPrincipal configuration value");
 
-        String kerberosKeytab = conf.get(KERBEROS_KEYTAB_CONFIG_NAME);
+        String kerberosKeytab = conf.get(FS_DL_IMPL_KERBEROS_KEYTAB_CONFIG_NAME);
         if (kerberosKeytab == null)
             throw new IOException("Datalake initialisation requires a kerberos keytab to be configured using the fs.dl.impl.kerberosKeytab configuration value");
 
-        String kerberosRealm = conf.get(KERBEROS_REALM_CONFIG_NAME);
+        String kerberosRealm = conf.get(FS_DL_IMPL_KERBEROS_REALM_CONFIG_NAME);
         if (kerberosKeytab == null)
             throw new IOException("Datalake initialisation requires a kerberos realm to be configured using the fs.dl.impl.kerberosRealm configuration value");
 
@@ -299,9 +319,6 @@ public class DLFileSystem extends FileSystem
     ) throws IOException {
         super.initialize(uri, conf);
 
-        //setConf(conf);
-
-
         /** set user pattern based on configuration file */
         UserParam.setUserPattern(conf.get(
                 DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_KEY,
@@ -309,7 +326,7 @@ public class DLFileSystem extends FileSystem
 
         kerberosIdentity = initialiseKerberosIdentity(conf);
 
-        String authority = conf.get("fs.dl.impl.defaultEndpoint", uri.getAuthority());
+        String authority = conf.get(FS_DL_IMPL_DEFAULT_ENDPOINT, uri.getAuthority());
 
         this.uri = URI.create(uri.getScheme() + "://" + authority);
         this.nnAddrs = resolveNNAddr();
@@ -355,7 +372,7 @@ public class DLFileSystem extends FileSystem
                             failoverSleepMaxMillis);
         }
 
-        this.homeDirectory = conf.get("fs.dl.impl.homeDirectory");
+        this.homeDirectory = conf.get(FS_DL_IMPL_HOME_DIRECTORY);
 
         if (homeDirectory == null)
             throw new IOException("The Datalake requires a home directory to be configured in the fs.dl.impl.homeDirectory configuration variable. This is in the form /data_lake/dlxxxx");
@@ -368,9 +385,8 @@ public class DLFileSystem extends FileSystem
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_DEFAULT);
         this.delegationToken = null;
 
-        this.defaultFilePermissions = Short.decode(conf.get("fs.dl.impl.defaultFilePermissions", this.DEFAULT_FILE_PERMISSIONS));
-        this.defaultDirectoryPermissions = Short.decode(conf.get("fs.dl.impl.defaultDirectoryPermissions", this.DEFAULT_DIRECTORY_PERMISSIONS));
-        this.defaultUMask = Short.decode(conf.get("fs.dl.impl.defaultUMask", this.DEFAULT_UMASK));
+        this.defaultFilePermissions = Short.decode(conf.get(FS_DL_IMPL_DEFAULT_FILE_PERMISSIONS, this.DEFAULT_FILE_PERMISSIONS));
+        this.defaultUMask = Short.decode(conf.get(FS_DL_IMPL_DEFAULT_UMASK, this.DEFAULT_UMASK));
     }
 
 
@@ -479,7 +495,7 @@ public class DLFileSystem extends FileSystem
     /**
      * Return a URL pointing to given path on the namenode.
      *
-     * @param path to obtain the URL for
+     * @param path  to obtain the URL for
      * @param query string to append to the path
      * @return namenode URL referring to the given path
      * @throws IOException on error constructing the URL
@@ -593,6 +609,7 @@ public class DLFileSystem extends FileSystem
 
     /**
      * Create a symlink pointing to the destination path.
+     *
      * @see org.apache.hadoop.fs.Hdfs#createSymlink(Path, Path, boolean)
      */
     public void createSymlink(Path destination, Path f, boolean createParent
@@ -1088,7 +1105,9 @@ public class DLFileSystem extends FileSystem
             super(o, r);
         }
 
-        /** Remove offset parameter before returning the resolved url. */
+        /**
+         * Remove offset parameter before returning the resolved url.
+         */
         @Override
         protected URL getResolvedUrl(final HttpURLConnection connection
         ) throws MalformedURLException {
@@ -1139,11 +1158,11 @@ public class DLFileSystem extends FileSystem
 
         /**
          * Two-step requests redirected to a DN
-         *
+         * <p>
          * Create/Append:
          * Step 1) Submit a Http request with neither auto-redirect nor data.
          * Step 2) Submit another Http request with the URL from the Location header with data.
-         *
+         * <p>
          * The reason of having two-step create/append is for preventing clients to
          * send out the data before the redirect. This issue is addressed by the
          * "Expect: 100-continue" header in HTTP/1.1; see RFC 2616, Section 8.2.3.
@@ -1151,7 +1170,7 @@ public class DLFileSystem extends FileSystem
          * and Java 6 http client), which do not correctly implement "Expect:
          * 100-continue". The two-step create/append is a temporary workaround for
          * the software library bugs.
-         *
+         * <p>
          * Open/Checksum
          * Also implements two-step connects for other operations redirected to
          * a DN such as open and checksum
@@ -1516,7 +1535,9 @@ public class DLFileSystem extends FileSystem
             super(url);
         }
 
-        /** Setup offset url and connect. */
+        /**
+         * Setup offset url and connect.
+         */
         @Override
         protected HttpURLConnection connect(final long offset,
                                             final boolean resolved) throws IOException {
