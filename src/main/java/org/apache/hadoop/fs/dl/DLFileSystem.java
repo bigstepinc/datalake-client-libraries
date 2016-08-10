@@ -37,7 +37,6 @@ import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifie
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.web.ByteRangeInputStream;
 import org.apache.hadoop.hdfs.web.URLConnectionFactory;
-import org.apache.hadoop.hdfs.web.WebHdfsFileSystem;
 import org.apache.hadoop.hdfs.web.resources.*;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam.Op;
 import org.apache.hadoop.io.Text;
@@ -72,7 +71,7 @@ import java.util.*;
 /** A FileSystem for HDFS over the web. */
 public class DLFileSystem extends FileSystem
         implements DelegationTokenRenewer.Renewable, TokenAspect.TokenManagementDelegator {
-    public static final Log LOG = LogFactory.getLog(WebHdfsFileSystem.class);
+    public static final Log LOG = LogFactory.getLog(DLFileSystem.class);
     /** File System URI: {SCHEME}://namenode:port/path/to/file */
     public static final String SCHEME = "webhdfs";
     /** WebHdfs version. */
@@ -282,7 +281,7 @@ public class DLFileSystem extends FileSystem
         kerberosIdentity.login(kerberosPrincipal, kerberosKeytab, kerberosRealm);
 
         Principal princ = kerberosIdentity.getPrincipal();
-        LOG.info("Logged in as " + princ);
+        LOG.debug("Logged in as " + princ);
 
         return kerberosIdentity;
     }
@@ -300,18 +299,14 @@ public class DLFileSystem extends FileSystem
                 DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_KEY,
                 DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_DEFAULT));
 
-      /* connectionFactory = URLConnectionFactory
-                .newDefaultURLConnectionFactory(conf);
-                */
-
-        //ugi = UserGroupInformation.getCurrentUser();
-
         kerberosIdentity = initialiseKerberosIdentity(conf);
 
-        this.uri = URI.create(uri.getScheme() + "://" + uri.getAuthority());
+        String authority = conf.get("fs.dl.impl.defaultEndpoint", uri.getAuthority());
+
+        this.uri = URI.create(uri.getScheme() + "://" + authority);
         this.nnAddrs = resolveNNAddr();
 
-        LOG.info("Created kerberosIdentity " + kerberosIdentity + " for " + uri);
+        LOG.debug("Created kerberosIdentity " + kerberosIdentity + " for " + uri);
 
         boolean isHA = HAUtil.isClientFailoverConfigured(conf, this.uri);
         boolean isLogicalUri = isHA && HAUtil.isLogicalUri(conf, this.uri);
@@ -358,7 +353,8 @@ public class DLFileSystem extends FileSystem
             throw new IOException("The Datalake requires a home directory to be configured in the fs.dl.impl.homeDirectory configuration variable. This is in the form /data_lake/dlxxxx");
 
         this.workingDir = getHomeDirectory();
-        this.canRefreshDelegationToken = false; //TODO: try to use delegation tokens as well.
+        //Delegation tokens don't work with httpfs
+        this.canRefreshDelegationToken = false;
         this.disallowFallbackToInsecureCluster = !conf.getBoolean(
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_KEY,
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_DEFAULT);
@@ -1252,7 +1248,7 @@ public class DLFileSystem extends FileSystem
             for (int retry = 0; ; retry++) {
                 checkRetry = !redirected;
                 final URL url = getUrl();
-                LOG.info("Calling " + url);
+                LOG.debug("Calling " + url);
                 try {
                     final HttpURLConnection conn = connect(url);
                     // output streams will validate on close

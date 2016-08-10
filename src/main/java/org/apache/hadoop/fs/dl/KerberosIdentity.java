@@ -76,7 +76,7 @@ public class KerberosIdentity {
                     kerberosKeytab, kerberosPrincipal, kerberosRealm);
 
             LoginContext lc = new LoginContext("", null, null, loginContextConfiguration);
-            LOG.info("Attempting login as " + kerberosPrincipal + " using " + kerberosKeytab);
+            LOG.debug("Attempting login as " + kerberosPrincipal + " using " + kerberosKeytab);
 
             lc.login();
 
@@ -222,7 +222,9 @@ public class KerberosIdentity {
                 options.put("useTicketCache", "false");
                 options.put("renewTGT", "false");
                 options.put("isInitiator", "true");
-                options.put("debug", "true");
+                if (LOG.isDebugEnabled())
+                    options.put("debug", "true");
+
             }
             options.put("refreshKrb5Config", "true");
 
