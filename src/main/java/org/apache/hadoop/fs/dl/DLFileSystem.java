@@ -88,6 +88,10 @@ public class DLFileSystem extends FileSystem
     private final String KERBEROS_KEYTAB_CONFIG_NAME = "fs.dl.impl.kerberosKeytab";
     private final String KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
 
+    private final String DEFAULT_FILE_PERMISSIONS = "00640";
+    private final String DEFAULT_DIRECTORY_PERMISSIONS = "00750";
+    private final String DEFAULT_UMASK = "00007";
+
     /** Default connection factory may be overridden in tests to use smaller timeout values */
     protected URLConnectionFactory connectionFactory;
     protected Text tokenServiceName;
@@ -108,6 +112,10 @@ public class DLFileSystem extends FileSystem
     private boolean disallowFallbackToInsecureCluster;
 
     private String homeDirectory;
+
+    private short defaultFilePermissions;
+    private short defaultDirectoryPermissions;
+    private short defaultUMask;
 
     /** Is WebHDFS enabled in conf? */
     public static boolean isEnabled(final Configuration conf, final Log log) {
@@ -359,6 +367,10 @@ public class DLFileSystem extends FileSystem
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_KEY,
                 CommonConfigurationKeys.IPC_CLIENT_FALLBACK_TO_SIMPLE_AUTH_ALLOWED_DEFAULT);
         this.delegationToken = null;
+
+        this.defaultFilePermissions = Short.decode(conf.get("fs.dl.impl.defaultFilePermissions", this.DEFAULT_FILE_PERMISSIONS));
+        this.defaultDirectoryPermissions = Short.decode(conf.get("fs.dl.impl.defaultDirectoryPermissions", this.DEFAULT_DIRECTORY_PERMISSIONS));
+        this.defaultUMask = Short.decode(conf.get("fs.dl.impl.defaultUMask", this.DEFAULT_UMASK));
     }
 
 
@@ -518,9 +530,11 @@ public class DLFileSystem extends FileSystem
 
     private FsPermission applyUMask(FsPermission permission) {
         if (permission == null) {
-            permission = FsPermission.getDefault();
+            permission = new FsPermission(this.defaultFilePermissions);
         }
-        return permission.applyUMask(FsPermission.getUMask(getConf()));
+        FsPermission umask = new FsPermission(this.defaultUMask);
+        LOG.info("permission = " + permission + " and umask=" + umask);
+        return permission.applyUMask(umask);
     }
 
     private HdfsFileStatus getHdfsFileStatus(Path f) throws IOException {
