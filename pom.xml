@@ -12,12 +12,11 @@
   See the License for the specific language cverning permissions and
   limitations under the License. See accompanying LICENSE file.
 -->
-<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.bigstep</groupId>
     <artifactId>datalake</artifactId>
-    <version>1.0</version>
+    <version>1.1-SNAPSHOT</version>
     <name>${project.groupId}:${project.artifactId}</name>
     <description>
         This is a support library for interacting with the Bigstep's DataLake from hadoop.
@@ -34,7 +33,7 @@
     <developers>
         <developer>
             <name>Alexandru Bordei</name>
-            <email/>
+            <email />
             <url>https://www.bigstep.com</url>
         </developer>
     </developers>
@@ -43,7 +42,7 @@
         <connection>scm:git:git@github.com:bigstepinc/datalake.git</connection>
         <developerConnection>scm:git:git@github.com:bigstepinc/datalake.git</developerConnection>
         <url>https://github.com/bigstepinc/datalake</url>
-        <tag>datalake-1.0</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <!-- http://central.sonatype.org/pages/apache-maven.html#deploying-to-ossrh-with-apache-maven-introduction -->
