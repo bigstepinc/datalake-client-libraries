@@ -60,19 +60,16 @@ Then you can use regular hadoop commands like distcp:
 hadoop distcp hdfs://localhost/user/hdfs/test dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dlzzz
 ```
 
-To compile copy the directory into the **hadoop-2.7.1-src/hadoop-tools/** directory:
-```bash
-cd hadoop-2.7.1-src/hadoop-tools
-git clone <this-repo>
-cd hadoop-2.7.1-src/hadoop-tools/hadoop-bigstep
-mvn package
-```
-
-To use directly in a project use 
+To use directly in a project use:
 ```xml
 <dependency>
   <groupId>com.bigstep</groupId>
   <artifactId>datalake</artifactId>
   <version>1.0</version>
 </dependency>
+```
+
+To compile use:
+```bash
+mvn package
 ```
