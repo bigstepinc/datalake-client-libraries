@@ -16,8 +16,7 @@ These libraries enable the "dl://" prefix in hadoop and associated tools so that
   ```bash
   brew install krb5
   ```
-  
-  2. Update the **/etc/krb5.conf**:
+3. Update the **/etc/krb5.conf**:
   
   ```ini
   [appdefaults]
@@ -46,7 +45,7 @@ These libraries enable the "dl://" prefix in hadoop and associated tools so that
    }
    ```
 
-3. Add the following to **core-site.xml**. If using Spark standalone place this file in the **spark-2.x.x/conf** directory:
+4. Add the following to **core-site.xml**. If using Spark standalone place this file in the **spark-2.x.x/conf** directory:
   
   ```xml
   <property>
@@ -87,7 +86,7 @@ These libraries enable the "dl://" prefix in hadoop and associated tools so that
   </property>
   ```
 
-4. Create a keytab:
+5. Create a keytab:
   ```bash
   # ktutil
   ktutil:  addent -password -p kXXX@bigstep.io -k 1 -e aes256-cts
@@ -95,7 +94,7 @@ These libraries enable the "dl://" prefix in hadoop and associated tools so that
   ktutil:  exit
   ```
   
-5. Make sure that the jar is available on all the cluster machines. Also the keytab must be reachable to yarn user (eg: not /root).
+6. Make sure that the jar is available on all the cluster machines. Also the keytab must be reachable to yarn user (eg: not /root).
   * Vanilla Hadoop  **hadoop-2.7.x/share/hadoop/common/**
   * Vanilla Spark 2.0 **spark-2.x.x/jars**
   * Cloudera CDH 5.x  **/opt/cloudera/parcels/CDH/lib/hadoop/**
