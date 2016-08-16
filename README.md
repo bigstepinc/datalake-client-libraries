@@ -56,6 +56,8 @@ first add the following to **core-site.xml**:
 
 Make sure that the jar is available on all the cluster machines. Also the keytab must be reachable to yarn user (eg: not /root).
 
+To create a keytab follow the instructions provided [on the DataLake documentation](https://fullmetal.bigstep.com/docs#documents/61).
+
 Then you can use regular hadoop commands like distcp:
 ```bash
 hadoop distcp hdfs://localhost/user/hdfs/test dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dlzzz
