@@ -1,4 +1,4 @@
-package com.bigstep.hadoop.datalake;
+package com.bigstep.datalake;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;

@@ -1,4 +1,4 @@
-package com.bigstep.hadoop.datalake;
+package com.bigstep.datalake;
 
 /**
  * res * Licensed to the Apache Software Foundation (ASF) under one

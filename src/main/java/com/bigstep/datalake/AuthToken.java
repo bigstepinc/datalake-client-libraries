@@ -1,4 +1,4 @@
-package com.bigstep.hadoop.datalake;
+package com.bigstep.datalake;
 
 /**
  * Licensed under the Apache License, Version 2.0 (the "License");

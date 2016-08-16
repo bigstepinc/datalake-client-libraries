@@ -17,12 +17,37 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.bigstep</groupId>
-    <artifactId>hadoop</artifactId>
-    <version>2.7.1-SNAPSHOT</version>
+    <artifactId>datalake</artifactId>
+    <version>1.0-SNAPSHOT</version>
     <name>Bigstep DataLake Support Libraries</name>
     <description>
         This is a support library for interacting with the Bigstep's DataLake from hadoop.
     </description>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Alexandru Bordei</name>
+            <email></email>
+            <url>https://www.bigstep.com</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git@github.com:bigstepinc/hadoop-bigstep.git</connection>
+        <developerConnection>scm:git@github.com:bigstepinc/hadoop-bigstep.git</developerConnection>
+        <url>https://github.com/bigstepinc/hadoop-bigstep</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <!-- http://central.sonatype.org/pages/apache-maven.html#deploying-to-ossrh-with-apache-maven-introduction -->
     <distributionManagement>
         <snapshotRepository>
             <id>ossrh</id>
