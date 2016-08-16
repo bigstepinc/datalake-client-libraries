@@ -25,7 +25,7 @@ Add the following to **core-site.xml**. If using Spark standalone place this fil
 
 <property>
   <name>fs.dl.impl.kerberosKeytab</name>
-  <value>/Users/alexandrubordei/code/hadoop/hadoop-2.7.2/etc/hadoop/k7.keytab</value>
+  <value>/etc/hadoop/kx.keytab</value>
 </property>
 
 <property>
@@ -35,7 +35,7 @@ Add the following to **core-site.xml**. If using Spark standalone place this fil
 
 <property>
   <name>fs.dl.impl.homeDirectory</name>
-  <value>/data_lake/dl267</value>
+  <value>/data_lake/dlxxxx</value>
 </property>
 
 <!-- optional -->
