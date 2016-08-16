@@ -1,6 +1,6 @@
 # Bigstep DataLake client libraries
 
-These libraries enable the "dl://" prefix in hadoop and associated tools so that hdfs dfs -ls or distcopy work properly. They can also be used as a standalone FileSystem implementation to enable easy interaction with the datalake from java or scala applications.
+These libraries enable the "dl://" prefix in hadoop and associated tools so that **hdfs dfs -ls** or **distcopy** work properly. They can also be used as a standalone FileSystem implementation to enable easy interaction with the DataLake from java or scala applications.
 
 1. Before getting started deploy a "DataLake" in the Bigstep's Control panel. 
 2. Install kerberos client libraries:
