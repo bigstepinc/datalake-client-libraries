@@ -4,11 +4,13 @@ These libraries enable the "dl://" prefix in hadoop and associated tools so that
 
 To use as part of a hadoop stack, first copy the jar to:
 
-1.Vanilla Hadoop  **hadoop-2.7.x/share/hadoop/common/**
+1. Vanilla Hadoop  **hadoop-2.7.x/share/hadoop/common/**
+2. Vanilla Spark 2.0 **spark-2.x.x/jars**
+3. Cloudera CDH 5.x  **/opt/cloudera/parcels/CDH/lib/hadoop/**
 
-2.CDH  **/opt/cloudera/parcels/CDH/lib/hadoop/**
+It should be possible technically to be used with any hadoop enabled application as long as it is added to the classpath. 
 
-Add the following to **core-site.xml**:
+Add the following to **core-site.xml**. If using Spark standalone place this file in the **spark-2.x.x/conf** directory:
 
 ```xml
 <property>
