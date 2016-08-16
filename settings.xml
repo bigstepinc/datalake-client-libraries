@@ -1,0 +1,9 @@
+<settings>
+    <servers>
+        <server>
+            <id>ossrh</id>
+            <username>alexandrubordei</username>
+            <password>A4B-KPx-hdR-xMn</password>
+        </server>
+    </servers>
+</settings>

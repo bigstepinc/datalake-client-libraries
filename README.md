@@ -14,7 +14,7 @@ first add the following to **core-site.xml**:
 ```xml
 <property>
   <name>fs.dl.impl</name>
-  <value>org.apache.hadoop.fs.dl.DLFileSystem</value>
+  <value>com.bigstep.datalake.DLFileSystem</value>
 </property>
 
 <property>
@@ -28,18 +28,13 @@ first add the following to **core-site.xml**:
 </property>
 
 <property>
+  <name>fs.dl.impl.kerberosRealm</name>
+  <value>bigstep.io</value>
+</property>
+
+<property>
   <name>fs.dl.impl.homeDirectory</name>
   <value>/data_lake/dl267</value>
-</property>
-
-<property>
-  <name>fs.dl.impl.kerberosRealm</name>
-  <value>bigstep.io</value>
-</property>
-
-<property>
-  <name>fs.dl.impl.kerberosRealm</name>
-  <value>bigstep.io</value>
 </property>
 
 <!-- optional -->
@@ -47,6 +42,7 @@ first add the following to **core-site.xml**:
   <name>fs.dl.impl.defaultFilePermissions</name>
   <value>00640</value>
 </property>
+
 <!-- optional -->
 <property>
   <name>fs.dl.impl.defaultUMask</name>

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.fs.dl;
+package com.bigstep.hadoop.datalake;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -49,7 +49,12 @@ public class JsonUtil {
     private static final Object[] EMPTY_OBJECT_ARRAY = {};
     private static final DatanodeInfo[] EMPTY_DATANODE_INFO_ARRAY = {};
 
-    /** Convert a token object to a Json string. */
+    /**
+     * Convert a token object to a Json string.
+     *
+     * @param token token
+     * @return returns the string representing the specified token.
+     */
     public static String toJsonString(final Token<? extends TokenIdentifier> token
     ) throws IOException {
         return toJsonString(Token.class, toJsonMap(token));

@@ -1,4 +1,4 @@
-package org.apache.hadoop.fs.dl;
+package com.bigstep.hadoop.datalake;
 
 /**
  * res * Licensed to the Apache Software Foundation (ASF) under one
@@ -133,12 +133,13 @@ public class DLFileSystem extends FileSystem
     private short defaultUMask;
 
     /**
-     * Is WebHDFS enabled in conf?
+     * Is DatalakeFS enabled in conf? This function always returns true.
+     * @param conf Configuration file (ignored)
+     * @param log log instance to log things to. (ignored)
+     * @return always true
      */
     public static boolean isEnabled(final Configuration conf, final Log log) {
-        final boolean b = conf.getBoolean(DFSConfigKeys.DFS_WEBHDFS_ENABLED_KEY,
-                DFSConfigKeys.DFS_WEBHDFS_ENABLED_DEFAULT);
-        return b;
+        return true;
     }
 
 
@@ -264,8 +265,6 @@ public class DLFileSystem extends FileSystem
 
     /**
      * Return the protocol scheme for the FileSystem.
-     * <p/>
-     *
      * @return <code>webhdfs</code>
      */
     @Override
@@ -275,6 +274,7 @@ public class DLFileSystem extends FileSystem
 
     /**
      * return the underlying transport protocol (http / https).
+     * @return Returns "https"
      */
     protected String getTransportScheme() {
         return "https";
@@ -286,10 +286,31 @@ public class DLFileSystem extends FileSystem
 
 
     /**
-     * Returns the UGI as configured in the configuration. Currently only supports the keytab implementation.
+     * Returns the KerberosIdentity as specified in the configuration. Currently only supports the keytab implementation.
+     * <pre>
+     * {@code
+     * <property>
+     * <name>fs.dl.impl.kerberosPrincipal</name>
+     *  <value>k7@bigstep.io</value>
+     * </property>
      *
+     * <property>
+     * <name>fs.dl.impl.kerberosKeytab</name>
+     * <value>/Users/alexandrubordei/code/hadoop/hadoop-2.7.2/etc/hadoop/k7.keytab</value>
+     * </property>
+     *
+     * <property>
+     * <name>fs.dl.impl.homeDirectory</name>
+     * <value>/data_lake/dl267</value>
+     * </property>
+     *
+     * <property>
+     * <name>fs.dl.impl.kerberosRealm</name>
+     * <value>bigstep.io</value>
+     * </property>
+     * }</pre>
      * @param conf
-     * @return
+     * @return the @see KerberosIdentity after initialisation.
      */
     private KerberosIdentity initialiseKerberosIdentity(Configuration conf) throws IOException {
         String kerberosPrincipal = conf.get(FS_DL_IMPL_KERBEROS_PRINCIPAL_CONFIG_NAME);
