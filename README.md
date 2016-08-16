@@ -1,15 +1,14 @@
-# hadoop-bigstep
-Bigstep support libraries for hadoop.
+# Bigstep DataLake client libraries
 
-This is usefull if you want to be able to interact with datasets stored in Bigstep's Datalake. 
+These libraries enable the "dl://" prefix in hadoop and associated tools so that hdfs dfs -ls or distcopy work properly. They can also be used as a standalone FileSystem implementation to enable easy interaction with the datalake from java or scala applications.
 
-To use, first copy the jar to:
+To use as part of a hadoop stack, first copy the jar to:
 
 1.Vanilla Hadoop  **hadoop-2.7.x/share/hadoop/common/**
 
 2.CDH  **/opt/cloudera/parcels/CDH/lib/hadoop/**
 
-first add the following to **core-site.xml**:
+Add the following to **core-site.xml**:
 
 ```xml
 <property>
@@ -65,4 +64,13 @@ cd hadoop-2.7.1-src/hadoop-tools
 git clone <this-repo>
 cd hadoop-2.7.1-src/hadoop-tools/hadoop-bigstep
 mvn package
+```
+
+To use directly in a project use 
+```xml
+<dependency>
+  <groupId>com.bigstep</groupId>
+  <artifactId>datalake</artifactId>
+  <version>1.0</version>
+</dependency>
 ```
