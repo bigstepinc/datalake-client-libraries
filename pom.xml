@@ -16,10 +16,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.bigstep</groupId>
-    <artifactId>datalake</artifactId>
+    <artifactId>datalake-client-libraries</artifactId>
     <version>1.1-SNAPSHOT</version>
     <name>${project.groupId}:${project.artifactId}</name>
-    <url>https://github.com/bigstepinc/datalake</url>
+    <url>https://github.com/bigstepinc/datalake-client-libraries</url>
     <description>
         This is a support library for interacting with the Bigstep's DataLake from hadoop.
     </description>
@@ -42,9 +42,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git@github.com:bigstepinc/datalake.git</connection>
-        <developerConnection>scm:git:git@github.com:bigstepinc/datalake.git</developerConnection>
-        <url>https://github.com/bigstepinc/datalake</url>
+        <connection>scm:git:git@github.com:bigstepinc/datalake-client-libraries.git</connection>
+        <developerConnection>scm:git:git@github.com:bigstepinc/datalake-client-libraries.git</developerConnection>
+        <url>https://github.com/bigstepinc/datalake-client-libraries</url>
         <tag>HEAD</tag>
     </scm>
 
@@ -169,6 +169,9 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <javadocExecutable>${java.home}/../bin/javadoc</javadocExecutable>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
