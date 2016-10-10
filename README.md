@@ -2,8 +2,9 @@
 
 These libraries enable the "dl://" prefix in hadoop and associated tools so that **hdfs dfs -ls** or **distcopy** work properly. They can also be used as a standalone FileSystem implementation to enable easy interaction with the DataLake from java or scala applications.
 
-1. Before getting started deploy a "DataLake" in the Bigstep's Control panel. 
-2. Install kerberos client libraries:
+1. Before getting started deploy a "DataLake" in the Bigstep's Control panel.
+2. Install Java Cryptography Extension on all nodes of the cluster.
+3. Install kerberos client libraries:
   Centos:
   ```bash
   yum install krb5-workstation
@@ -16,14 +17,14 @@ These libraries enable the "dl://" prefix in hadoop and associated tools so that
   ```bash
   brew install krb5
   ```
-3. Update the **/etc/krb5.conf**:
+4. Update the **/etc/krb5.conf** or download the auto-generated file from you Bigstep account:
   
   ```ini
   [appdefaults]
   validate=false
   
   [libdefaults]
-   default_realm =  fullmetal.bigstep.com
+   default_realm =  bigstep.io
    dns_lookup_realm = false
    dns_lookup_kdc = false
    ticket_lifetime = 24h
@@ -38,14 +39,14 @@ These libraries enable the "dl://" prefix in hadoop and associated tools so that
   permitted_enctypes = aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 des3-cbc-sha1 arcfour-hmac-md5 camellia256-cts-cmac camellia128-cts-cmac des-cbc-crc des-cbc-md5 des-cbc-md4
   
   [realms]
-    bigstepcloud.com = {
-    kdc = krb.bigstepcloud.com
-    admin_server = admin.bigstepcloud.com
+    bigstep.io = {
+    kdc = fullmetal.bigstep.com
+    admin_server = fullmetal.bigstep.com
     max_renewable_life = 5d 0h 0m 0s
    }
    ```
 
-4. Add the following to **core-site.xml**. If using Spark standalone place this file in the **spark-2.x.x/conf** directory:
+5. Add the following to **core-site.xml**. If using Spark standalone place this file in the **spark-2.x.x/conf** directory:
   
   ```xml
   <property>
