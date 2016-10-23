@@ -6,9 +6,14 @@ They also build with a standalone version of "hdfs dfs".
 ###Using the standalone tool
 The command line tool should be independent of the environment. It can coexist with any kerberos instalation.
 To use:
-1. Download the binaries from here [TODO:add link to binary]
+
+1. Download the binaries from here 
+[TODO:add link to binary]
+
 2. Generate a keytab:
- ./bin/dl genkeytab kxxx@bigstep.io 
+```bash
+ ./bin/dl genkeytab kxxx@bigstep.io
+```
 3. Execute any hdfs dfs command
  ./bin/dl fs -ls dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dlxxx/
 
@@ -16,8 +21,11 @@ To use:
 ###Using as part of a Hadoop (or Spark) environment:
 
 To use the library within a hadoop environment:
+
 1. Before getting started deploy a "DataLake" in the Bigstep's Control panel.
+
 2. Install Java Cryptography Extension on all nodes of the cluster.
+
 3. Install kerberos client libraries:
   Centos:
   ```bash
