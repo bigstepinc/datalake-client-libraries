@@ -9,7 +9,6 @@ To use:
 
 1. Download the binaries from here 
 [TODO:add link to binary]
-
 2. Generate a keytab:
 ```bash
  ./bin/dl genkeytab kxxx@bigstep.io
