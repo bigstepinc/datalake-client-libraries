@@ -17,8 +17,8 @@ package com.bigstep.datalake;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hadoop.security.authentication.client.*;
 import org.ietf.jgss.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import sun.misc.BASE64Encoder;
 
 import java.io.IOException;
@@ -50,8 +50,8 @@ public class KerberosIdentityAuthenticator implements Authenticator {
      */
     public static final String NEGOTIATE = "Negotiate";
     private static final String AUTH_HTTP_METHOD = "OPTIONS";
-    private static Logger LOG = LoggerFactory.getLogger(
-            KerberosIdentityAuthenticator.class);
+    private static Log LOG = LogFactory.getLog(KerberosIdentityAuthenticator.class);
+
     private URL url;
     private HttpURLConnection conn;
     private Base64 base64;

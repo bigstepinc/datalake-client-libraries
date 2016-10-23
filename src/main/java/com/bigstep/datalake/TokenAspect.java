@@ -20,7 +20,6 @@ package com.bigstep.datalake;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.DelegationTokenRenewer;
 import org.apache.hadoop.fs.DelegationTokenRenewer.Renewable;
@@ -120,7 +119,7 @@ final class TokenAspect<T extends FileSystem & Renewable> {
         long renewDelegationToken(final Token<?> token) throws IOException;
     }
 
-    @InterfaceAudience.Private
+
     public static class TokenManager extends TokenRenewer {
 
         private static String getSchemeByKind(Text kind) {

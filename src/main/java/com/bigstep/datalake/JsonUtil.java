@@ -19,6 +19,10 @@ package com.bigstep.datalake;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
@@ -36,18 +40,21 @@ import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.TokenIdentifier;
 import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.StringUtils;
+import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.map.ObjectReader;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.*;
 
 /** JSON Utilities */
 public class JsonUtil {
     private static final Object[] EMPTY_OBJECT_ARRAY = {};
     private static final DatanodeInfo[] EMPTY_DATANODE_INFO_ARRAY = {};
+    public static final Log LOG = LogFactory.getLog(JsonUtil.class);
 
     /**
      * Convert a token object to a Json string.
@@ -124,12 +131,10 @@ public class JsonUtil {
     public static String toJsonString(final String key, final Object value) {
         final Map<String, Object> m = new TreeMap<String, Object>();
         m.put(key, value);
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            return mapper.writeValueAsString(m);
-        } catch (IOException ignored) {
-        }
-        return null;
+
+        Gson gson=new Gson();
+
+        return gson.toJson(m);
     }
 
     /** Convert a FsPermission object to a string. */
@@ -150,7 +155,9 @@ public class JsonUtil {
         }
     }
 
-    /** Convert a HdfsFileStatus object to a Json string. */
+    /** Convert a HdfsFileStatus object to a Json string.
+     *
+     */
     public static String toJsonString(final HdfsFileStatus status,
                                       boolean includeType) {
         if (status == null) {
@@ -181,14 +188,15 @@ public class JsonUtil {
         m.put("fileId", status.getFileId());
         m.put("childrenNum", status.getChildrenNum());
         m.put("storagePolicy", status.getStoragePolicy());
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            return includeType ?
-                    toJsonString(FileStatus.class, m) : mapper.writeValueAsString(m);
-        } catch (IOException ignored) {
-        }
-        return null;
+
+        Gson gson=new Gson();
+
+        return includeType ?
+                toJsonString(FileStatus.class, m) : gson.toJson(m);
+
     }
+
+
 
     /** Convert a Json map to a HdfsFileStatus object. */
     public static HdfsFileStatus toFileStatus(final Map<?, ?> json, boolean includesType) {
@@ -641,12 +649,8 @@ public class JsonUtil {
                 new TreeMap<String, Map<String, Object>>();
         finalMap.put(AclStatus.class.getSimpleName(), m);
 
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            return mapper.writeValueAsString(finalMap);
-        } catch (IOException ignored) {
-        }
-        return null;
+        Gson gson=new Gson();
+        return gson.toJson(finalMap);
     }
 
     /** Convert a Json map to a AclStatus object. */
@@ -710,8 +714,9 @@ public class JsonUtil {
                                       final XAttrCodec encoding) throws IOException {
         final Map<String, Object> finalMap = new TreeMap<String, Object>();
         finalMap.put("XAttrs", toJsonArray(xAttrs, encoding));
-        ObjectMapper mapper = new ObjectMapper();
-        return mapper.writeValueAsString(finalMap);
+
+        Gson gson = new Gson();
+        return gson.toJson(finalMap);
     }
 
     public static String toJsonString(final List<XAttr> xAttrs)
@@ -720,11 +725,12 @@ public class JsonUtil {
         for (XAttr xAttr : xAttrs) {
             names.add(XAttrHelper.getPrefixName(xAttr));
         }
-        ObjectMapper mapper = new ObjectMapper();
-        String ret = mapper.writeValueAsString(names);
+
+        Gson gson = new Gson();
+        String ret=gson.toJson(names);
         final Map<String, Object> finalMap = new TreeMap<String, Object>();
         finalMap.put("XAttrNames", ret);
-        return mapper.writeValueAsString(finalMap);
+        return gson.toJson(finalMap);
     }
 
     public static byte[] getXAttr(final Map<?, ?> json, final String name)
@@ -756,15 +762,11 @@ public class JsonUtil {
         }
 
         final String namesInJson = (String) json.get("XAttrNames");
-        ObjectReader reader = new ObjectMapper().reader(List.class);
-        final List<Object> xattrs = reader.readValue(namesInJson);
-        final List<String> names =
-                Lists.newArrayListWithCapacity(json.keySet().size());
 
-        for (Object xattr : xattrs) {
-            names.add((String) xattr);
-        }
-        return names;
+        Gson gson = new Gson();
+        Type token = new TypeToken<List<String>>(){}.getType();
+        return gson.fromJson(namesInJson, token);
+
     }
 
     private static Map<String, byte[]> toXAttrMap(final List<?> objects)

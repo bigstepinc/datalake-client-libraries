@@ -1,0 +1,38 @@
+<configuration>
+<property>
+  <name>fs.dl.impl</name>
+  <value>com.bigstep.datalake.DLFileSystem</value>
+</property>
+
+<property>
+  <name>fs.dl.impl.kerberosPrincipal</name>
+  <value>k7@bigstep.io</value>
+</property>
+
+<property>
+  <name>fs.dl.impl.kerberosKeytab</name>
+  <value>/etc/k7.keytab</value>
+</property>
+
+<property>
+  <name>fs.dl.impl.kerberosRealm</name>
+  <value>bigstep.io</value>
+</property>
+
+<property>
+  <name>fs.dl.impl.homeDirectory</name>
+  <value>/data_lake/dl267</value>
+</property>
+
+<!-- optional -->
+<property>
+  <name>fs.dl.impl.defaultFilePermissions</name>
+  <value>00640</value>
+</property>
+
+<!-- optional -->
+<property>
+  <name>fs.dl.impl.defaultUMask</name>
+  <value>007</value>
+</property>
+</configuration>

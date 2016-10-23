@@ -1,0 +1,33 @@
+#!/bin/bash
+#SIMPLE SCRIPT TO INVOKE HDFS DFS COMMANDS WITHOUT THE WHOLE HADOOP BINARIES
+
+
+KDC=fullmetal.bigstep.com
+REALM=bigstep.io
+
+
+
+
+bin=`which $0`
+bin=`dirname ${bin}`
+bin=`cd "$bin" > /dev/null; pwd`
+
+LIB="$bin/../lib"
+CONF="$bin/../conf"
+
+
+KRB5_CONFIG=$CONF/krb5.conf
+
+
+CLASSPATH=$CONF:$(JARS=("$LIB"/*.jar); IFS=:; echo "${JARS[*]}")
+
+DEBUG_KERBEROS=${KERBEROS_DEBUG:-false}
+
+if [[ "$1" == "genkeytab" ]]; then
+	CLASS=com.bigstep.datalake.KeytabUtil
+else
+	CLASS=org.apache.hadoop.fs.FsShell
+fi
+
+java -cp "$CLASSPATH/*.jar" -Djava.security.krb5.conf=$KRB5_CONFIG -Djava.security.krb5.kdc=$KDC -Djava.security.krb5.realm=$REALM -Dsun.security.krb5.debug=$DEBUG_KERBEROS $CLASS $@
+

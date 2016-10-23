@@ -21,6 +21,7 @@ package com.bigstep.datalake;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import com.google.gson.Gson;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -58,10 +59,7 @@ import org.apache.hadoop.util.StringUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.ws.rs.core.MediaType;
-import java.io.BufferedOutputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.*;
 import java.security.Principal;
 import java.security.PrivilegedExceptionAction;
@@ -162,8 +160,12 @@ public class DLFileSystem extends FileSystem
                             + "\" (parsed=\"" + parsed + "\")");
                 }
             }
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.reader(Map.class).readValue(in);
+            final BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+
+
+            Gson gson = new Gson();
+            return gson.fromJson( reader, Map.class);
+
         } finally {
             in.close();
         }
