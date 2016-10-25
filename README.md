@@ -17,7 +17,7 @@ To use:
 
 1. Download the binaries from here 
 
-[TODO:add link to binary]
+http://repo1.maven.org/maven2/com/bigstep/datalake-client-libraries/1.3/datalake-client-libraries-1.3-bin.tar.gz
 
 2. Generate a keytab:
 
