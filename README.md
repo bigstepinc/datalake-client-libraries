@@ -151,13 +151,17 @@ cp datalake-client-libraries-*.jar jars
 5. Start spark-shell
 6. 
 
+###Using via Spark
+```bash
+./bin/spark-shell --packages com.bigstep:datalake-client-libraries:1.3
+```
 ###Using programatically:
 To use directly in a maven use:
 ```xml
 <dependency>
   <groupId>com.bigstep</groupId>
-  <artifactId>datalake</artifactId>
-  <version>1.1</version>
+  <artifactId>datalake-client-libraries</artifactId>
+  <version>1.3</version>
 </dependency>
 ```
 Javadoc is available from maven central.
