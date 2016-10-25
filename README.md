@@ -3,6 +3,8 @@
 These libraries enable the "dl://" prefix in hadoop and associated tools so that **hdfs dfs -ls** or **distcopy** work properly. They can also be used as a standalone FileSystem implementation to enable easy interaction with the DataLake from java or scala applications.
 They also build with a standalone version of "hdfs dfs".
 
+[![Build Status](https://travis-ci.org/bigstepinc/datalake-client-libraries.svg?branch=master)](https://travis-ci.org/bigstepinc/datalake-client-libraries)
+
 ###Before getting started: 
 
 1. Deploy a "DataLake" in the Bigstep's Control panel.
