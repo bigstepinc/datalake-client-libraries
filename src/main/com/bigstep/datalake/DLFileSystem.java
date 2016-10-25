@@ -603,9 +603,7 @@ public class DLFileSystem extends FileSystem
                     f.getBlockSize(), f.getModificationTime(), f.getAccessTime(),
                     f.getPermission(), f.getOwner(), f.getGroup(),
                     f.isSymlink() ? new Path(f.getSymlink()) : null,
-                    (!f.isEmptyLocalName() && !f.isDir()) ?
-                            parent.makeQualified(getUri(), getWorkingDirectory()):
-                            f.getFullPath(parent).makeQualified(getUri(), getWorkingDirectory())
+                    f.getFullPath(parent).makeQualified(getUri(), getWorkingDirectory())
             );
     }
 
@@ -949,6 +947,15 @@ public class DLFileSystem extends FileSystem
     @Override
     public FileStatus[] listStatus(final Path f) throws IOException {
         statistics.incrementReadOps(1);
+
+        //this forces a new request for file status for the current
+        //file/directory but it is the only way to tell if the
+        //current path is a file or directory.
+
+        FileStatus prefixStatus=this.getFileStatus(f);
+
+        if(prefixStatus.isFile())
+            return new FileStatus[]{prefixStatus};
 
         final HttpOpParam.Op op = GetOpParam.Op.LISTSTATUS;
         return new FsPathResponseRunner<FileStatus[]>(op, f) {

@@ -15,19 +15,6 @@ import static org.junit.Assert.assertEquals;
  */
 public class TestDLFileSystem {
 
-
-    @Test
-    public void testListStatus() throws IOException {
-        String path = "dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dl267/baseballdatabank-master/core/AllstarFull.csv";
-        Path hdfsPath = new Path(path);
-        Configuration conf= new Configuration();
-        conf.addResource(getClass().getClassLoader().getResource("core-site.xml").getFile());
-
-        FileSystem fs = hdfsPath.getFileSystem(conf);
-        Path qualified = hdfsPath.makeQualified(fs.getUri(), fs.getWorkingDirectory());
-    }
-
-
     @Test
     public void testGetFileStatus() throws IOException {
         String path = "dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dl267/baseballdatabank-master/core/AllstarFull.csv";
@@ -51,6 +38,19 @@ public class TestDLFileSystem {
         FileStatus[] status=fs.listStatus(hdfsPath);
 
         assertEquals(path, status[0].getPath().toString());
+    }
+
+    @Test
+    public void testListFileStatusOnDirectory() throws IOException {
+        String path = "dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dl267/baseballdatabank-master/core";
+        Path hdfsPath = new Path(path);
+        Configuration conf= new Configuration();
+        conf.addResource(getClass().getClassLoader().getResource("core-site.xml").getFile());
+
+        FileSystem fs = hdfsPath.getFileSystem(conf);
+        FileStatus[] status=fs.listStatus(hdfsPath);
+        assertEquals(27, status.length);
+        assertEquals(path.concat("AllstarFull.csv"), status[0].getPath().toString());
     }
 
 }
