@@ -16,7 +16,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.bigstep</groupId>
     <artifactId>datalake-client-libraries</artifactId>
-    <version>1.2</version>
+    <version>1.3-SNAPSHOT</version>
     <name>${project.groupId}:${project.artifactId}</name>
     <url>https://github.com/bigstepinc/datalake-client-libraries</url>
     <description>
@@ -44,7 +44,7 @@
         <connection>scm:git:git@github.com:bigstepinc/datalake-client-libraries.git</connection>
         <developerConnection>scm:git:git@github.com:bigstepinc/datalake-client-libraries.git</developerConnection>
         <url>https://github.com/bigstepinc/datalake-client-libraries</url>
-        <tag>datalake-client-libraries-1.2</tag>
+        <tag>datalake-client-libraries-1.1</tag>
     </scm>
 
     <!-- http://central.sonatype.org/pages/apache-maven.html#deploying-to-ossrh-with-apache-maven-introduction -->
