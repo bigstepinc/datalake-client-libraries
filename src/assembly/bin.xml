@@ -38,7 +38,7 @@
         <include>*.jar</include>
     </includes>
     <excludes>
-        <exclude>google-commons*.jar</exclude>
+        <exclude>google-collections*.jar</exclude>
     </excludes>
 </fileSet>
 <fileSet>

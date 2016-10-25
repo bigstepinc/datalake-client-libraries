@@ -222,7 +222,7 @@
                 <version>2.6</version>
                 <configuration>
                     <descriptor>src/assembly/bin.xml</descriptor>
-                    <finalName>datalake-${pom.version}</finalName>
+                    <finalName>datalake-${project.version}</finalName>
                 </configuration>
                 <executions>
                     <execution>
@@ -274,6 +274,19 @@
             <groupId>org.apache.directory.server</groupId>
             <artifactId>apacheds-kerberos-codec</artifactId>
             <version>2.0.0-M23</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-core_2.10</artifactId>
+            <version>2.0.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_2.10</artifactId>
+            <version>2.0.1</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

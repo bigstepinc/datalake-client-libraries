@@ -2,28 +2,39 @@
 
 These libraries enable the "dl://" prefix in hadoop and associated tools so that **hdfs dfs -ls** or **distcopy** work properly. They can also be used as a standalone FileSystem implementation to enable easy interaction with the DataLake from java or scala applications.
 They also build with a standalone version of "hdfs dfs".
- 
+
+###Before getting started: 
+
+1. Deploy a "DataLake" in the Bigstep's Control panel.
+
+2. Install Java Cryptography Extension on all nodes of the cluster.
+
 ###Using the standalone tool
 The command line tool should be independent of the environment. It can coexist with any kerberos instalation.
 To use:
 
 1. Download the binaries from here 
+
 [TODO:add link to binary]
+
 2. Generate a keytab:
+
 ```bash
  ./bin/dl genkeytab kxxx@bigstep.io
 ```
+3. Add your kerberos identity to the embeded core-site.xml:
+```
+vim conf/core-site.xml
+```
+
 3. Execute any hdfs dfs command
  ./bin/dl fs -ls dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dlxxx/
 
 
-###Using as part of a Hadoop (or Spark) environment:
+###Using as part of a Hadoop environment:
 
 To use the library within a hadoop environment:
 
-1. Before getting started deploy a "DataLake" in the Bigstep's Control panel.
-
-2. Install Java Cryptography Extension on all nodes of the cluster.
 
 3. Install kerberos client libraries:
   Centos:
@@ -128,6 +139,17 @@ You should now be able to use regular hadoop commands like distcp:
 hadoop distcp hdfs://localhost/user/hdfs/test dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dlzzz
 ```
 
+##Using as part of a Spark environment:
+1. Extract a vanilla spark 2.* directory
+2. Copy the datalake-*.jar in the jars directory of spark-2.*
+```
+cp datalake-client-libraries-*.jar jars
+```
+4. Modify core-site.xml to include the above
+5. Start spark-shell
+6. 
+
+###Using programatically:
 To use directly in a maven use:
 ```xml
 <dependency>
@@ -136,6 +158,7 @@ To use directly in a maven use:
   <version>1.1</version>
 </dependency>
 ```
+Javadoc is available from maven central.
 
 To compile use:
 ```bash

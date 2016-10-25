@@ -4,7 +4,6 @@ import org.apache.directory.server.kerberos.shared.crypto.encryption.KerberosKey
 import org.apache.directory.server.kerberos.shared.keytab.Keytab;
 import org.apache.directory.server.kerberos.shared.keytab.KeytabEntry;
 import org.apache.directory.shared.kerberos.KerberosTime;
-import org.apache.directory.shared.kerberos.KerberosUtils;
 import org.apache.directory.shared.kerberos.codec.types.EncryptionType;
 import org.apache.directory.shared.kerberos.components.EncryptionKey;
 
@@ -19,9 +18,16 @@ import java.util.*;
 public class KeytabUtil {
 
     public static void generateKeytab(String principalName, String userPassword, String keytabFile) throws IOException {
+
+        if(userPassword.length()==0)
+            throw new IllegalArgumentException("password must not have zero length");
+
+
+        if(!principalName.contains("@"))
+            throw new IllegalArgumentException("principal name must contain realm: principal@realm");
+
         Keytab keytab = Keytab.getInstance();
         KerberosTime timeStamp = new KerberosTime();
-        //KerberosUtils.UTC_DATE_FORMAT.parse("20070217235745Z")
 
         Set<EncryptionType> ciphers= EnumSet.of(EncryptionType.AES256_CTS_HMAC_SHA1_96);
 
@@ -43,17 +49,18 @@ public class KeytabUtil {
 
     }
 
-    public static void main(String argv[]) throws IOException {
+    public static void main(String argv[]) throws IllegalArgumentException, IOException {
         if(argv.length!=3)
         {
             System.err.println("Syntax: genkeytab <principal@realm> <keytab_file_path>");
             System.exit(-1);
         }
 
-        System.out.println("Password:");
+        String principalName = argv[1];
+        String keytabFile = argv[2];
+
+        System.out.print("Password:");
         String userPassword = String.valueOf(System.console().readPassword());
-        String principalName = argv[0];
-        String keytabFile = argv[1];
 
         generateKeytab(principalName, userPassword, keytabFile);
 

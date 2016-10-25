@@ -56,7 +56,6 @@ import org.apache.hadoop.security.token.TokenSelector;
 import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenSelector;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.StringUtils;
-import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.ws.rs.core.MediaType;
 import java.io.*;
@@ -599,11 +598,15 @@ public class DLFileSystem extends FileSystem
     }
 
     private FileStatus makeQualified(HdfsFileStatus f, Path parent) {
-        return new FileStatus(f.getLen(), f.isDir(), f.getReplication(),
-                f.getBlockSize(), f.getModificationTime(), f.getAccessTime(),
-                f.getPermission(), f.getOwner(), f.getGroup(),
-                f.isSymlink() ? new Path(f.getSymlink()) : null,
-                f.getFullPath(parent).makeQualified(getUri(), getWorkingDirectory()));
+
+            return new FileStatus(f.getLen(), f.isDir(), f.getReplication(),
+                    f.getBlockSize(), f.getModificationTime(), f.getAccessTime(),
+                    f.getPermission(), f.getOwner(), f.getGroup(),
+                    f.isSymlink() ? new Path(f.getSymlink()) : null,
+                    (!f.isEmptyLocalName() && !f.isDir()) ?
+                            parent.makeQualified(getUri(), getWorkingDirectory()):
+                            f.getFullPath(parent).makeQualified(getUri(), getWorkingDirectory())
+            );
     }
 
     @Override
