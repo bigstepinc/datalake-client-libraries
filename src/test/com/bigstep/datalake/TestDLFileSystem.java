@@ -50,7 +50,7 @@ public class TestDLFileSystem {
         FileSystem fs = hdfsPath.getFileSystem(conf);
         FileStatus[] status=fs.listStatus(hdfsPath);
         assertEquals(27, status.length);
-        assertEquals(path.concat("AllstarFull.csv"), status[0].getPath().toString());
+        assertEquals(path.concat("/AllstarFull.csv"), status[0].getPath().toString());
     }
 
 }

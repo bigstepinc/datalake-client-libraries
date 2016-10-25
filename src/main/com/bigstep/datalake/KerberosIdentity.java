@@ -32,6 +32,8 @@ public class KerberosIdentity {
 
     public static final Log LOG = LogFactory.getLog(KerberosIdentity.class);
 
+    private static HashMap<String,Subject> subjectCache = new HashMap<String,Subject>();
+
     private final long DEFAULT_RELOGIN_TIME = 1000 * 60 * 60 * 5;
     private long reloginTime;
 
@@ -59,33 +61,55 @@ public class KerberosIdentity {
         return kerberosRealm;
     }
 
+    /**
+     * Returns a cached subject for the principal.
+     * @param kerberosPrincipal
+     * @return the subject or null if none is found
+     */
+
+
+
 
     public void login(String kerberosPrincipal, String kerberosKeytab, String kerberosRealm) throws IOException {
 
-        File kerberosKeytabFile = new File(kerberosKeytab);
+        this.kerberosPrincipal=kerberosPrincipal;
+        this.kerberosKeytab=kerberosKeytab;
+        this.kerberosRealm=kerberosRealm;
 
-        if (!kerberosKeytabFile.exists())
-            throw new IOException("Kerberos keytab file " + kerberosKeytab + " not found");
 
-        if (!kerberosKeytabFile.canRead())
-            throw new IOException("Kerberos keytab file " + kerberosKeytab + " cannot be accessed");
+        if(subjectCache.containsKey(kerberosPrincipal)) {
 
-        try {
-
-            KerberosConfiguration loginContextConfiguration = new KerberosConfiguration(
-                    kerberosKeytab, kerberosPrincipal, kerberosRealm);
-
-            LoginContext lc = new LoginContext("", null, null, loginContextConfiguration);
-            LOG.debug("Attempting login as " + kerberosPrincipal + " using " + kerberosKeytab);
-
-            lc.login();
-
-            subject = lc.getSubject();
-
+            LOG.debug("Retrived principal "+kerberosPrincipal+"from cache");
+            subject = subjectCache.get(kerberosPrincipal);
             lastLogin = new Date();
+        }
+        else {
 
-        } catch (LoginException le) {
-            throw new IOException(le);
+            File kerberosKeytabFile = new File(kerberosKeytab);
+
+            if (!kerberosKeytabFile.exists())
+                throw new IOException("Kerberos keytab file " + kerberosKeytab + " not found");
+
+            if (!kerberosKeytabFile.canRead())
+                throw new IOException("Kerberos keytab file " + kerberosKeytab + " cannot be accessed");
+
+            try {
+
+                KerberosConfiguration loginContextConfiguration = new KerberosConfiguration(
+                        kerberosKeytab, kerberosPrincipal, kerberosRealm);
+
+                LoginContext lc = new LoginContext("", null, null, loginContextConfiguration);
+                LOG.debug("Attempting login as " + kerberosPrincipal + " using " + kerberosKeytab);
+
+                lc.login();
+
+                subject = lc.getSubject();
+
+                lastLogin = new Date();
+
+            } catch (LoginException le) {
+                throw new IOException(le);
+            }
         }
     }
 
@@ -100,6 +124,7 @@ public class KerberosIdentity {
     }
 
     public void relogin() throws IOException {
+        subjectCache.remove(kerberosPrincipal);
         login(kerberosPrincipal, kerberosKeytab, kerberosRealm);
     }
 

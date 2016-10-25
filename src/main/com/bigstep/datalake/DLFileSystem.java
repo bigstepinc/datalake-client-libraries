@@ -37,6 +37,7 @@ import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.web.ByteRangeInputStream;
+import org.apache.hadoop.hdfs.web.URLConnectionFactory;
 import org.apache.hadoop.hdfs.web.resources.*;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam.Op;
 import org.apache.hadoop.io.Text;
@@ -102,6 +103,9 @@ public class DLFileSystem extends FileSystem
     private static final String DEFAULT_FILE_PERMISSIONS = "00640";
     private static final String DEFAULT_UMASK = "00007";
 
+
+
+
     /**
      * Default connection factory may be overridden in tests to use smaller timeout values
      */
@@ -114,6 +118,9 @@ public class DLFileSystem extends FileSystem
 
 
     private KerberosIdentity kerberosIdentity;
+
+
+    private AuthenticatedURL.Token kerberosTokenCache=new AuthenticatedURL.Token();;
 
     private URI uri;
     private Token<?> delegationToken;
@@ -1245,10 +1252,15 @@ public class DLFileSystem extends FileSystem
             }
         }
 
+
+
         private URLConnection openConnection(URL url) throws IOException {
-            final AuthenticatedURL.Token authToken = new AuthenticatedURL.Token();
+            //final AuthenticatedURL.Token authToken = new AuthenticatedURL.Token();
             try {
-                return new AuthenticatedURL(new KerberosIdentityAuthenticator(kerberosIdentity)).openConnection(url, authToken);
+                URLConnection conn = new AuthenticatedURL(new KerberosIdentityAuthenticator(kerberosIdentity)).openConnection(url, kerberosTokenCache);
+
+                return conn;
+
             } catch (AuthenticationException e) {
                 throw new IOException(e);
             }
