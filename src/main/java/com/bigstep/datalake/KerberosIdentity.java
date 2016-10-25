@@ -64,12 +64,7 @@ public class KerberosIdentity {
     /**
      * Returns a cached subject for the principal.
      * @param kerberosPrincipal
-     * @return the subject or null if none is found
      */
-
-
-
-
     public void login(String kerberosPrincipal, String kerberosKeytab, String kerberosRealm) throws IOException {
 
         this.kerberosPrincipal=kerberosPrincipal;

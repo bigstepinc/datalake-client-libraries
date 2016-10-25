@@ -55,7 +55,7 @@ public class JsonUtil {
 
     /**
      * Convert a token object to a Json string.
-     *
+     * @throws IOException exception thrown if the map cannot be converted
      * @param token token
      * @return returns the string representing the specified token.
      */
@@ -75,7 +75,12 @@ public class JsonUtil {
         return m;
     }
 
-    /** Convert a Json map to a Token. */
+    /**
+     * Convert a Json map to a Token.
+      * @param m json map of the input
+     * @return the token
+     * @throws IOException
+     */
     public static Token<? extends TokenIdentifier> toToken(
             final Map<?, ?> m) throws IOException {
         if (m == null) {
@@ -88,7 +93,12 @@ public class JsonUtil {
         return token;
     }
 
-    /** Convert a Json map to a Token of DelegationTokenIdentifier. */
+    /**
+     * Convert a Json map to a Token of DelegationTokenIdentifier.
+     * @param json input map
+     * @return returns the token
+     * @throws IOException
+     */
     @SuppressWarnings("unchecked")
     public static Token<DelegationTokenIdentifier> toDelegationToken(
             final Map<?, ?> json) throws IOException {
@@ -96,14 +106,23 @@ public class JsonUtil {
         return (Token<DelegationTokenIdentifier>) toToken(m);
     }
 
-    /** Convert a Json map to a Token of BlockTokenIdentifier. */
+    /**
+     * Convert a Json map to a Token of BlockTokenIdentifier.
+     * @param m input map
+     * @return the token
+     * @throws IOException
+     */
     @SuppressWarnings("unchecked")
     private static Token<BlockTokenIdentifier> toBlockToken(
             final Map<?, ?> m) throws IOException {
         return (Token<BlockTokenIdentifier>) toToken(m);
     }
 
-    /** Convert an exception object to a Json string. */
+    /**
+     * Convert an exception object to a Json string.
+     * @param e the exception
+     * @return the json string
+     */
     public static String toJsonString(final Exception e) {
         final Map<String, Object> m = new TreeMap<String, Object>();
         m.put("exception", e.getClass().getSimpleName());
@@ -112,7 +131,11 @@ public class JsonUtil {
         return toJsonString(RemoteException.class, m);
     }
 
-    /** Convert a Json map to a RemoteException. */
+    /**
+     * Convert an exception object to a Json string.
+     * @param json the exception coded as json
+     * @return the remote exception
+     */
     public static RemoteException toRemoteException(final Map<?, ?> json) {
         final Map<?, ?> m = (Map<?, ?>) json.get(RemoteException.class.getSimpleName());
         final String message = (String) m.get("message");
@@ -124,7 +147,12 @@ public class JsonUtil {
         return toJsonString(clazz.getSimpleName(), value);
     }
 
-    /** Convert a key-value pair to a Json string. */
+    /**
+     * Convert a key-value pair to a Json string.
+     * @param key the key
+     * @param value the value
+     * @return the json string of the kv
+     */
     public static String toJsonString(final String key, final Object value) {
         final Map<String, Object> m = new TreeMap<String, Object>();
         m.put(key, value);
@@ -134,12 +162,11 @@ public class JsonUtil {
         return gson.toJson(m);
     }
 
-    /** Convert a FsPermission object to a string. */
     private static String toString(final FsPermission permission) {
         return String.format("%o", permission.toShort());
     }
 
-    /** Convert a string to a FsPermission object. */
+
     private static FsPermission toFsPermission(final String s, Boolean aclBit,
                                                Boolean encBit) {
         FsPermission perm = new FsPermission(Short.parseShort(s, 8));
@@ -152,8 +179,11 @@ public class JsonUtil {
         }
     }
 
-    /** Convert a HdfsFileStatus object to a Json string.
-     *
+    /**
+     * Convert a HdfsFileStatus object to a Json string.
+     * @param status input status
+     * @param includeType type to use
+     * @return the json
      */
     public static String toJsonString(final HdfsFileStatus status,
                                       boolean includeType) {
@@ -193,9 +223,12 @@ public class JsonUtil {
 
     }
 
-
-
-    /** Convert a Json map to a HdfsFileStatus object. */
+    /**
+     * Convert a Json map to a HdfsFileStatus object.
+     * @param json
+     * @param includesType
+     * @return sau nu
+     */
     public static HdfsFileStatus toFileStatus(final Map<?, ?> json, boolean includesType) {
         if (json == null) {
             return null;
