@@ -1253,9 +1253,15 @@ public class DLFileSystem extends FileSystem
         }
 
 
-
+        /**
+         * This opens an authenticated connection. This uses the already cached token if it is set
+         * or creates another one if not.
+         * @param url
+         * @return
+         * @throws IOException
+         */
         private URLConnection openConnection(URL url) throws IOException {
-            //final AuthenticatedURL.Token authToken = new AuthenticatedURL.Token();
+
             try {
                 URLConnection conn = new AuthenticatedURL(new KerberosIdentityAuthenticator(kerberosIdentity)).openConnection(url, kerberosTokenCache);
 
