@@ -4,7 +4,7 @@ deploy:
   provider: releases
   api_key:
     secure: lYS+oJ5ZNuMZiin6wzKc8eb0Tnk2d0XyY3nKHVj5FWha6bqXwS4hTgpGbBvY6J82/rpxOBN8UDLCajCFyS5gEQDDy59jedpPq7Dm+F+EUM7x0QQcVg9m21AbxWDVOsgcD7TArcHmpdQ476WrOfF06Ne9eRc4hwW8D876R7w/HKeRroPKTvacHyBJExLsXGznGabVu605tXg9po2iiNrE3nKRS/R5Qz61hgWmzew//YFReib7/OCyvL3Z5fESPPx45D5gKhpvXCnZ5LAgczK34+Q8609I+QUNYP6L4v4zkwis8i+sMt+d4Xf/F6ZaHbbOkIzpdlah5lEx0aRW5rPjs/NuptCIQ5XHbiPRFa+WTxTkwn1VYv+um0q4Y/xiThKn1JNMcDHQkkdn0JPsS3A6xqTxZgX66f0Ae8EoSMAKTImd7dnl8jwYFvAMV0cMrVAOdDDrMyjR2wB5JNdDIMFs35TiM3GmN3DWTUzYzbeA91EpU/HhH289UpYnYBfbZf2F1s00rHgUQUgaUFMnX1buxezTdNr4JS/zzfv/2ETOXt6QrolFbCe5Eyz5HcKHxJxkcb7TSSIZuuQ6jgVGl7eExrH2XYY4RIlHMmN6mVyCTzl4ANkrtgQB37WOJuhRBwXL0iKUnbiNTcrTj91k04woWjXSITavczvDjCme7ed2feI=
-  file: target/datalake-*.tar.gz
-  file: target/datalake-*.jar
+  file: datalake-*.tar.gz
+  file: datalake-*.jar
   on:
     repo: bigstepinc/datalake-client-libraries
