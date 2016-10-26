@@ -14,10 +14,10 @@ They also build with a standalone version of "hdfs dfs".
 ###Using the standalone tool
 The command line tool should be independent of the environment. It can coexist with any kerberos instalation.
 To use:
+0. Have java installed, have the unlimited strenght policy files installed (openJDK includes them)
+1. Download the binaries
 
-1. Download the binaries from here 
-
-http://repo1.maven.org/maven2/com/bigstep/datalake-client-libraries/1.3/datalake-client-libraries-1.3-bin.tar.gz
+[latest SNAPSHOT](https://github.com/bigstepinc/datalake-client-libraries/releases/latest)
 
 2. Generate a keytab:
 
