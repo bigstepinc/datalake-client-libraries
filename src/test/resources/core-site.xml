@@ -30,9 +30,18 @@
   <value>00640</value>
 </property>
 
-<!-- optional -->
+<!-- optional. This is the umask to be enforced on the permissions being
+deployed in the datalake. As a security precaution, to prevent accidentally
+making the files publicly available, te default mask (007) overwrites all the
+'others' settings. -->
 <property>
   <name>fs.dl.impl.defaultUMask</name>
   <value>007</value>
+</property>
+
+<!-- This is provided to allow the interaction with a generic httpfs server for testing -->
+<property>
+  <name>fs.dl.impl.transportScheme</name>
+  <value>http</value>
 </property>
 </configuration>

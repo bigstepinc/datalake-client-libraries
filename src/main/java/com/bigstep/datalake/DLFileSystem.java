@@ -37,7 +37,6 @@ import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.namenode.SafeModeException;
 import org.apache.hadoop.hdfs.web.ByteRangeInputStream;
-import org.apache.hadoop.hdfs.web.URLConnectionFactory;
 import org.apache.hadoop.hdfs.web.resources.*;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam.Op;
 import org.apache.hadoop.io.Text;
@@ -99,7 +98,8 @@ public class DLFileSystem extends FileSystem
     public static final String FS_DL_IMPL_KERBEROS_PRINCIPAL_CONFIG_NAME = "fs.dl.impl.kerberosPrincipal";
     public static final String FS_DL_IMPL_KERBEROS_KEYTAB_CONFIG_NAME = "fs.dl.impl.kerberosKeytab";
     public static final String FS_DL_IMPL_KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
-
+    public static final String FS_DL_IMPL_DEFAULT_TRANSPORT_SCHEME = "https";
+    public static final String FS_DL_IMPL_TRANSPORT_SCHEME_CONFIG_NAME = "fs.dl.impl.transportScheme";
     private static final String DEFAULT_FILE_PERMISSIONS = "00640";
     private static final String DEFAULT_UMASK = "00007";
 
@@ -129,12 +129,11 @@ public class DLFileSystem extends FileSystem
     private InetSocketAddress nnAddrs[];
     private int currentNNAddrIndex;
     private boolean disallowFallbackToInsecureCluster;
-
     private String homeDirectory;
-
     private short defaultFilePermissions;
-
     private short defaultUMask;
+
+    private String transportScheme;
 
     /**
      * Is DatalakeFS enabled in conf? This function always returns true.
@@ -272,7 +271,7 @@ public class DLFileSystem extends FileSystem
     }
 
     /**
-     * Return the protocol scheme for the FileSystem.
+     * Return the protocol transportScheme for the FileSystem.
      * @return <code>webhdfs</code>
      */
     @Override
@@ -285,7 +284,7 @@ public class DLFileSystem extends FileSystem
      * @return Returns "https"
      */
     protected String getTransportScheme() {
-        return "https";
+        return this.transportScheme;
     }
 
     protected Text getTokenKind() {
@@ -416,6 +415,8 @@ public class DLFileSystem extends FileSystem
 
         this.defaultFilePermissions = Short.decode(conf.get(FS_DL_IMPL_DEFAULT_FILE_PERMISSIONS, this.DEFAULT_FILE_PERMISSIONS));
         this.defaultUMask = Short.decode(conf.get(FS_DL_IMPL_DEFAULT_UMASK, this.DEFAULT_UMASK));
+
+        this.transportScheme =conf.get(FS_DL_IMPL_TRANSPORT_SCHEME_CONFIG_NAME, FS_DL_IMPL_DEFAULT_TRANSPORT_SCHEME);
     }
 
 
