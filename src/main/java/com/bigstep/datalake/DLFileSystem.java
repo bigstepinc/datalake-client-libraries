@@ -122,7 +122,7 @@ public class DLFileSystem extends FileSystem
 
     private AuthenticatedURL.Token kerberosTokenCache=new AuthenticatedURL.Token();;
 
-    private URI uri;
+    private URI baseUri;
     private Token<?> delegationToken;
     private RetryPolicy retryPolicy = null;
     private Path workingDir;
@@ -134,6 +134,7 @@ public class DLFileSystem extends FileSystem
     private short defaultUMask;
 
     private String transportScheme;
+    private String defaultEndpoint;
 
     /**
      * Is DatalakeFS enabled in conf? This function always returns true.
@@ -174,6 +175,9 @@ public class DLFileSystem extends FileSystem
         } finally {
             in.close();
         }
+
+
+
     }
 
     private static Map<?, ?> validateResponse(final HttpOpParam.Op op,
@@ -354,20 +358,32 @@ public class DLFileSystem extends FileSystem
 
         kerberosIdentity = initialiseKerberosIdentity(conf);
 
-        String authority = conf.get(FS_DL_IMPL_DEFAULT_ENDPOINT, uri.getAuthority());
+        this.homeDirectory = conf.get(FS_DL_IMPL_HOME_DIRECTORY);
 
-        this.uri = URI.create(uri.getScheme() + "://" + authority);
+        if (homeDirectory == null)
+            throw new IOException("The Datalake requires a home directory to be configured in the fs.dl.impl.homeDirectory configuration variable. This is in the form /data_lake/dlxxxx");
+
+        this.defaultEndpoint = conf.get(FS_DL_IMPL_DEFAULT_ENDPOINT);
+
+        if (defaultEndpoint == null)
+            throw new IOException("The Datalake requires a default endpoint to be configured the fs.dl.impl.defaultEndpoint configuration variable. This is in the form /data_lake/dlxxxx");
+
+        URI defaultEndpointURI = URI.create(defaultEndpoint);
+
+        String authority = uri.getAuthority() == null ? defaultEndpointURI.getAuthority() : uri.getAuthority();
+
+        this.baseUri = URI.create(uri.getScheme() + "://" + authority+this.homeDirectory);
         this.nnAddrs = resolveNNAddr();
 
-        LOG.debug("Created kerberosIdentity " + kerberosIdentity + " for " + uri);
+        LOG.debug("Created kerberosIdentity " + kerberosIdentity + " for " + this.baseUri);
 
-        boolean isHA = HAUtil.isClientFailoverConfigured(conf, this.uri);
-        boolean isLogicalUri = isHA && HAUtil.isLogicalUri(conf, this.uri);
+        boolean isHA = HAUtil.isClientFailoverConfigured(conf, this.baseUri);
+        boolean isLogicalUri = isHA && HAUtil.isLogicalUri(conf, this.baseUri);
         // In non-HA or non-logical URI case, the code needs to call
         // getCanonicalUri() in order to handle the case where no port is
         // specified in the URI
         this.tokenServiceName = isLogicalUri ?
-                HAUtil.buildTokenServiceForLogicalUri(uri, getScheme())
+                HAUtil.buildTokenServiceForLogicalUri(this.baseUri, getScheme())
                 : SecurityUtil.buildTokenService(getCanonicalUri());
 
         if (!isHA) {
@@ -400,10 +416,6 @@ public class DLFileSystem extends FileSystem
                             failoverSleepMaxMillis);
         }
 
-        this.homeDirectory = conf.get(FS_DL_IMPL_HOME_DIRECTORY);
-
-        if (homeDirectory == null)
-            throw new IOException("The Datalake requires a home directory to be configured in the fs.dl.impl.homeDirectory configuration variable. This is in the form /data_lake/dlxxxx");
 
         this.workingDir = getHomeDirectory();
         //Delegation tokens don't work with httpfs
@@ -479,7 +491,7 @@ public class DLFileSystem extends FileSystem
 
     @Override
     public URI getUri() {
-        return this.uri;
+        return this.baseUri;
     }
 
     @Override
@@ -541,7 +553,7 @@ public class DLFileSystem extends FileSystem
     }
 
 
-    Param<?, ?>[] getAuthParameters(final HttpOpParam.Op op) throws IOException {
+    private Param<?, ?>[] getAuthParameters(final HttpOpParam.Op op) throws IOException {
         List<Param<?, ?>> authParams = Lists.newArrayList();
         // Skip adding delegation token for token operations because these
         // operations require authentication.
@@ -558,14 +570,45 @@ public class DLFileSystem extends FileSystem
         return authParams.toArray(new Param<?, ?>[0]);
     }
 
-    URL toUrl(final HttpOpParam.Op op, final Path fspath,
+    /**
+     * This computes a fully qualified path from a relative path.
+     * Makes sure all paths start with a /data_lake/dl prefix.
+     * If none is provided it will prepend the home directory.
+     * @param path
+     * @return the resulting path string.
+     */
+    @Override
+    public Path makeQualified(Path path)
+    {
+        URI pathURI=path.toUri();
+        String datalakelRelativePath = pathURI.getPath().startsWith("/data_lake/dl") ?
+                                       pathURI.getPath() :
+                                       this.getHomeDirectory()+pathURI.getPath();
+        return super.makeQualified(new Path(datalakelRelativePath));
+    }
+
+
+    /**
+     * Compute the path associated to a specific operation
+     * @param op the operation to be executed
+     * @param fspath the path, can be relative
+     * @param parameters various params depending on the operation
+     * @return the full HTTP url
+     * @throws IOException
+     */
+    @VisibleForTesting
+    private URL toUrl(final HttpOpParam.Op op, final Path fspath,
               final Param<?, ?>... parameters) throws IOException {
+
+
         //initialize URI path and query
         final String path = PATH_PREFIX
                 + (fspath == null ? "/" : makeQualified(fspath).toUri().getRawPath());
         final String query = op.toQueryString()
                 + Param.toSortedString("&", getAuthParameters(op))
                 + Param.toSortedString("&", parameters);
+
+        //TODO: add loadbalancing
         final URL url = getNamenodeURL(path, query);
         if (LOG.isTraceEnabled()) {
             LOG.trace("url=" + url);
@@ -1104,12 +1147,12 @@ public class DLFileSystem extends FileSystem
      */
     private InetSocketAddress[] resolveNNAddr() throws IOException {
         Configuration conf = getConf();
-        final String scheme = uri.getScheme();
+        final String scheme = baseUri.getScheme();
 
         ArrayList<InetSocketAddress> ret = new ArrayList<InetSocketAddress>();
 
-        if (!HAUtil.isLogicalUri(conf, uri)) {
-            InetSocketAddress addr = NetUtils.createSocketAddr(uri.getAuthority(),
+        if (!HAUtil.isLogicalUri(conf, baseUri)) {
+            InetSocketAddress addr = NetUtils.createSocketAddr(baseUri.getAuthority(),
                     getDefaultPort());
             ret.add(addr);
 
@@ -1118,7 +1161,7 @@ public class DLFileSystem extends FileSystem
                     .getHaNnWebHdfsAddresses(conf, scheme);
 
             // Extract the entry corresponding to the logical name.
-            Map<String, InetSocketAddress> addrs = addresses.get(uri.getHost());
+            Map<String, InetSocketAddress> addrs = addresses.get(baseUri.getHost());
             for (InetSocketAddress addr : addrs.values()) {
                 ret.add(addr);
             }

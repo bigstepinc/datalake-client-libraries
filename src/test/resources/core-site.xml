@@ -1,4 +1,13 @@
 <configuration>
+<!-- use this only if it does not affect your hadoop site. For standalone spark
+deployments this is useful as you can use relative paths eg ./bin/dl -ls /
+-->
+<property>
+  <name>fs.defaultFS</name>
+  <value>dl://node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000/data_lake/dl459</value>
+</property>
+
+
 <property>
   <name>fs.dl.impl</name>
   <value>com.bigstep.datalake.DLFileSystem</value>
@@ -17,6 +26,11 @@
 <property>
   <name>fs.dl.impl.kerberosRealm</name>
   <value>bigstep.io</value>
+</property>
+
+<property>
+  <name>fs.dl.impl.defaultEndpoint</name>
+  <value>node10930-datanodes-data-lake01-uk-reading.bigstep.io:14000</value>
 </property>
 
 <property>
@@ -42,6 +56,6 @@ making the files publicly available, te default mask (007) overwrites all the
 <!-- This is provided to allow the interaction with a generic httpfs server for testing -->
 <property>
   <name>fs.dl.impl.transportScheme</name>
-  <value>http</value>
+  <value>https</value>
 </property>
 </configuration>
