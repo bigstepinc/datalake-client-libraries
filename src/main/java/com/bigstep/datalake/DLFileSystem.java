@@ -654,7 +654,7 @@ public class DLFileSystem extends FileSystem
                     f.getBlockSize(), f.getModificationTime(), f.getAccessTime(),
                     f.getPermission(), f.getOwner(), f.getGroup(),
                     f.isSymlink() ? new Path(f.getSymlink()) : null,
-                    f.getFullPath(parent).makeQualified(getUri(), getWorkingDirectory())
+                    makeQualified(f.getFullPath(parent).makeQualified(getUri(), getWorkingDirectory()))
             );
     }
 
