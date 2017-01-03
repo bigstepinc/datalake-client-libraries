@@ -34,6 +34,7 @@ import org.apache.hadoop.hdfs.protocol.DatanodeInfo.AdminStates;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
+import org.apache.hadoop.hdfs.server.namenode.ContentSummaryComputationContext;
 import org.apache.hadoop.hdfs.server.namenode.INodeId;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.security.token.Token;
@@ -315,7 +316,8 @@ public class JsonUtil {
         m.put("cacheCapacity", datanodeinfo.getCacheCapacity());
         m.put("cacheUsed", datanodeinfo.getCacheUsed());
         m.put("lastUpdate", datanodeinfo.getLastUpdate());
-        m.put("lastUpdateMonotonic", datanodeinfo.getLastUpdateMonotonic());
+        //not implemented in 2.6
+        // m.put("lastUpdateMonotonic", datanodeinfo.getLastUpdateMonotonic());
         m.put("xceiverCount", datanodeinfo.getXceiverCount());
         m.put("networkLocation", datanodeinfo.getNetworkLocation());
         m.put("adminState", datanodeinfo.getAdminState().name());
@@ -413,7 +415,8 @@ public class JsonUtil {
                 getLong(m, "cacheCapacity", 0l),
                 getLong(m, "cacheUsed", 0l),
                 getLong(m, "lastUpdate", 0l),
-                getLong(m, "lastUpdateMonotonic", 0l),
+                //not implemented in 2.6
+               // getLong(m, "lastUpdateMonotonic", 0l),
                 getInt(m, "xceiverCount", 0),
                 getString(m, "networkLocation", ""),
                 AdminStates.valueOf(getString(m, "adminState", "NORMAL")));
@@ -586,9 +589,7 @@ public class JsonUtil {
         final long spaceConsumed = ((Number) m.get("spaceConsumed")).longValue();
         final long spaceQuota = ((Number) m.get("spaceQuota")).longValue();
 
-        return new ContentSummary.Builder().length(length).fileCount(fileCount).
-                directoryCount(directoryCount).quota(quota).spaceConsumed(spaceConsumed).
-                spaceQuota(spaceQuota).build();
+        return new ContentSummary(length,fileCount,directoryCount,quota,spaceConsumed,spaceQuota);
     }
 
     /** Convert a MD5MD5CRC32FileChecksum to a Json string. */
@@ -648,7 +649,7 @@ public class JsonUtil {
         return checksum;
     }
 
-    /** Convert a AclStatus object to a Json string. */
+    // Convert a AclStatus object to a Json string.
     public static String toJsonString(final AclStatus status) {
         if (status == null) {
             return null;
@@ -665,16 +666,7 @@ public class JsonUtil {
         }
         m.put("entries", stringEntries);
 
-        FsPermission perm = status.getPermission();
-        if (perm != null) {
-            m.put("permission", toString(perm));
-            if (perm.getAclBit()) {
-                m.put("aclBit", true);
-            }
-            if (perm.getEncryptedBit()) {
-                m.put("encBit", true);
-            }
-        }
+        
         final Map<String, Map<String, Object>> finalMap =
                 new TreeMap<String, Map<String, Object>>();
         finalMap.put(AclStatus.class.getSimpleName(), m);
@@ -695,12 +687,7 @@ public class JsonUtil {
         aclStatusBuilder.owner((String) m.get("owner"));
         aclStatusBuilder.group((String) m.get("group"));
         aclStatusBuilder.stickyBit((Boolean) m.get("stickyBit"));
-        String permString = (String) m.get("permission");
-        if (permString != null) {
-            final FsPermission permission = toFsPermission(permString,
-                    (Boolean) m.get("aclBit"), (Boolean) m.get("encBit"));
-            aclStatusBuilder.setPermission(permission);
-        }
+
         final List<?> entries = (List<?>) m.get("entries");
 
         List<AclEntry> aclEntryList = new ArrayList<AclEntry>();

@@ -104,7 +104,7 @@ public class DLFileSystem extends FileSystem
     private static final String DEFAULT_UMASK = "00007";
 
 
-
+    private static final String FAILED_TO_GET_UGI_MSG_HEADER = "Failed to obtain user group information:";
 
     /**
      * Default connection factory may be overridden in tests to use smaller timeout values
@@ -211,7 +211,7 @@ public class DLFileSystem extends FileSystem
             // the NN mangles these exceptions but the DN does not and may need
             // to re-fetch a token if either report the token is expired
             if (re.getMessage() != null && re.getMessage().startsWith(
-                    SecurityUtil.FAILED_TO_GET_UGI_MSG_HEADER)) {
+                    FAILED_TO_GET_UGI_MSG_HEADER)) {
                 String[] parts = re.getMessage().split(":\\s+", 3);
                 re = new RemoteException(parts[1], parts[2]);
                 re = ((RemoteException) re).unwrapRemoteException(SecretManager.InvalidToken.class);
@@ -249,7 +249,7 @@ public class DLFileSystem extends FileSystem
         if (query == null) {
             return url;
         }
-        final String lower = StringUtils.toLowerCase(query);
+        final String lower = query.toLowerCase();
         if (!lower.startsWith(OFFSET_PARAM_PREFIX)
                 && !lower.contains("&" + OFFSET_PARAM_PREFIX)) {
             return url;
@@ -260,7 +260,7 @@ public class DLFileSystem extends FileSystem
         for (final StringTokenizer st = new StringTokenizer(query, "&");
              st.hasMoreTokens(); ) {
             final String token = st.nextToken();
-            if (!StringUtils.toLowerCase(token).startsWith(OFFSET_PARAM_PREFIX)) {
+            if (!token.toLowerCase().startsWith(OFFSET_PARAM_PREFIX)) {
                 if (b == null) {
                     b = new StringBuilder("?").append(token);
                 } else {
@@ -954,6 +954,7 @@ public class DLFileSystem extends FileSystem
         ).run();
     }
 
+    /*//not implemented in 2.6
     @Override
     public boolean truncate(Path f, long newLength) throws IOException {
         statistics.incrementWriteOps(1);
@@ -961,6 +962,7 @@ public class DLFileSystem extends FileSystem
         final HttpOpParam.Op op = PostOpParam.Op.TRUNCATE;
         return new FsPathBooleanRunner(op, f, new NewLengthParam(newLength)).run();
     }
+    */
 
     @Override
     public boolean delete(Path f, boolean recursive) throws IOException {
