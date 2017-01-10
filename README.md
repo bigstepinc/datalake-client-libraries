@@ -153,7 +153,7 @@ cp datalake-client-libraries-*.jar jars
 
 ###Using via Spark
 ```bash
-./bin/spark-shell --packages com.bigstep:datalake-client-libraries:1.3
+./bin/spark-shell --packages com.bigstep:datalake-client-libraries:1.4
 ```
 ###Using programatically:
 To use directly in a maven use:
