@@ -22,7 +22,7 @@ To use:
 2. Generate a keytab:
 
 ```bash
- ./bin/dl genkeytab kxxx@bigstep.io
+ ./bin/dl genkeytab kxxx@bigstep.io /etc/kxxxx.keytab
 ```
 3. Add your kerberos identity to the embeded core-site.xml:
 ```
