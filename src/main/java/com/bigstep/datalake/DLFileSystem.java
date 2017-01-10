@@ -60,6 +60,7 @@ import org.apache.hadoop.util.StringUtils;
 import javax.ws.rs.core.MediaType;
 import java.io.*;
 import java.net.*;
+import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
@@ -103,7 +104,7 @@ public class DLFileSystem extends FileSystem
     private static final String DEFAULT_FILE_PERMISSIONS = "00640";
     private static final String DEFAULT_UMASK = "00007";
 
-
+    public static final String JCE_ERROR = "Java Cryptography Extension (JCE) Unlimited Strength Jurisdiction Policy Files are not installed.";
 
 
     /**
@@ -429,6 +430,23 @@ public class DLFileSystem extends FileSystem
         this.defaultUMask = Short.decode(conf.get(FS_DL_IMPL_DEFAULT_UMASK, this.DEFAULT_UMASK));
 
         this.transportScheme =conf.get(FS_DL_IMPL_TRANSPORT_SCHEME_CONFIG_NAME, FS_DL_IMPL_DEFAULT_TRANSPORT_SCHEME);
+
+        if(!checkJCE())
+            throw new IOException(JCE_ERROR);
+
+    }
+
+    public static boolean checkJCE()  {
+
+        int maxLength= 0;
+
+        try {
+            maxLength = javax.crypto.Cipher.getMaxAllowedKeyLength("AES/ECB/PKCS5Padding");
+        } catch (NoSuchAlgorithmException e) {
+            LOG.error(e);
+        }
+
+        return maxLength==Integer.MAX_VALUE || maxLength==256;
     }
 
 
@@ -907,6 +925,7 @@ public class DLFileSystem extends FileSystem
                 new AccessTimeParam(atime)
         ).run();
     }
+
 
     @Override
     public long getDefaultBlockSize() {

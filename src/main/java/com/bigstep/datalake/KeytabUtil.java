@@ -56,10 +56,13 @@ public class KeytabUtil {
             System.exit(-1);
         }
 
+        if(!DLFileSystem.checkJCE())
+            throw new IOException(DLFileSystem.JCE_ERROR);
+
         String principalName = argv[1];
         String keytabFile = argv[2];
 
-        System.out.print("Password:");
+        System.out.print("Password (not checked for correctness against KDC):");
         String userPassword = String.valueOf(System.console().readPassword());
 
         generateKeytab(principalName, userPassword, keytabFile);
