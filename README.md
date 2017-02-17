@@ -22,7 +22,7 @@ To use:
 2. Generate a keytab:
 
 ```bash
- ./bin/dl genkeytab kxxx@bigstep.io
+ ./bin/dl genkeytab kxxx@bigstep.io /etc/kxxxx.keytab
 ```
 3. Add your kerberos identity to the embeded core-site.xml:
 ```
@@ -153,7 +153,7 @@ cp datalake-client-libraries-*.jar jars
 
 ###Using via Spark
 ```bash
-./bin/spark-shell --packages com.bigstep:datalake-client-libraries:1.3
+./bin/spark-shell --packages com.bigstep:datalake-client-libraries:1.4
 ```
 ###Using programatically:
 To use directly in a maven use:
@@ -161,7 +161,7 @@ To use directly in a maven use:
 <dependency>
   <groupId>com.bigstep</groupId>
   <artifactId>datalake-client-libraries</artifactId>
-  <version>1.3</version>
+  <version>1.4</version>
 </dependency>
 ```
 Javadoc is available from maven central.
@@ -202,3 +202,5 @@ If a command stalls for an unknown reason and then timeouts with KDC not found t
 ```
 udp_preference_limit=1
 ```
+
+If you see errors related to the missing ```StringUtil.toLowerCase``` try the hadoop2.6 branch as the master is linked to hadoop-2.7.
