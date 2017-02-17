@@ -26,7 +26,4 @@ hs_err_pid*
 .gitignore
 .idea/
 dev-support/
-src/main/resources/
-src/site/
-src/test/java/
 /settings.xml

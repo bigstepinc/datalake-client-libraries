@@ -29,5 +29,5 @@ else
 	CLASS=org.apache.hadoop.fs.FsShell
 fi
 
-java -cp "$CLASSPATH/*.jar" -Djava.security.krb5.conf=$KRB5_CONFIG -Djava.security.krb5.kdc=$KDC -Djava.security.krb5.realm=$REALM -Dsun.security.krb5.debug=$DEBUG_KERBEROS $CLASS $@
+java -cp "$CLASSPATH/*.jar" -Djava.security.krb5.conf=$KRB5_CONFIG -Djava.security.krb5.kdc=$KDC -Djava.security.krb5.realm=$REALM -Dfs.dl.encKey=asdasda -Dsun.security.krb5.debug=$DEBUG_KERBEROS $CLASS $@
 

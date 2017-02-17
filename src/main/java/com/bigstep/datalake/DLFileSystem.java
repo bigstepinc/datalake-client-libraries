@@ -439,14 +439,15 @@ public class DLFileSystem extends FileSystem
     public static boolean checkJCE()  {
 
         int maxLength= 0;
-
+        LOG.debug("Checking for JCE...");
         try {
             maxLength = javax.crypto.Cipher.getMaxAllowedKeyLength("AES/ECB/PKCS5Padding");
+            LOG.info("Check for JCE returned "+maxLength);
         } catch (NoSuchAlgorithmException e) {
             LOG.error(e);
         }
 
-        return maxLength==Integer.MAX_VALUE || maxLength==256;
+        return maxLength == Integer.MAX_VALUE || maxLength == 256;
     }
 
 
