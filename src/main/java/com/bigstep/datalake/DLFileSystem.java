@@ -113,6 +113,7 @@ public class DLFileSystem extends FileSystem
     public static final String FS_DL_IMPL_KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
     public static final String FS_DL_IMPL_DEFAULT_TRANSPORT_SCHEME = "https";
     public static final String FS_DL_IMPL_TRANSPORT_SCHEME_CONFIG_NAME = "fs.dl.impl.transportScheme";
+    public static final String FS_DL_IMPL_ENCRYPTION_KEY_PATH_CONFIG_NAME = "fs.dl.impl.encryptionKeyPath";
     private static final String DEFAULT_FILE_PERMISSIONS = "00640";
     private static final String DEFAULT_UMASK = "00007";
 
@@ -359,6 +360,18 @@ public class DLFileSystem extends FileSystem
         return kerberosIdentity;
     }
 
+    private void initialiseAesEncryption(Configuration conf) {
+        String aesKeyPath = conf.get(FS_DL_IMPL_ENCRYPTION_KEY_PATH_CONFIG_NAME);
+
+        if (aesKeyPath != null) {
+            try {
+                DLEncryptionUtils.loadAesKeyFromStringPath(aesKeyPath);
+            } catch (IOException e) {
+                //TODO
+            }
+        }
+    }
+
     @Override
     public synchronized void initialize(URI uri, Configuration conf
     ) throws IOException {
@@ -370,6 +383,8 @@ public class DLFileSystem extends FileSystem
                 DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_DEFAULT));
 
         kerberosIdentity = initialiseKerberosIdentity(conf);
+
+        initialiseAesEncryption(conf);
 
         this.homeDirectory = conf.get(FS_DL_IMPL_HOME_DIRECTORY);
 
@@ -1787,11 +1802,52 @@ public class DLFileSystem extends FileSystem
         private static String strCipher = "AES/CTR/NoPadding";
         private final static int nHeaderDetailLength = 128;
         private final static int nIVLength = 16;
+        private final static int nAesKeyLength = 16;
+        private static boolean _isInitialised = false;
+        private static String _aesKeyPath;
+        private static byte[] _aesKey;
 
         private static SecureRandom secureRandom = null;
 
         public static String getTransform() {
             return strCipher;
+        }
+
+        public static void loadAesKeyFromStringPath(String aesKeyPath) throws IOException {
+            _aesKeyPath = aesKeyPath;
+
+            if (!_isInitialised) {
+                File aesKeyFile = new File(_aesKeyPath);
+
+                if (!aesKeyFile.exists())
+                    throw new IOException("AES key file " + _aesKeyPath + " not found");
+
+                if (!aesKeyFile.canRead())
+                    throw new IOException("AES key file " + _aesKeyPath + " cannot be accessed");
+
+                File file = new File(_aesKeyPath);
+                int size = (int) file.length();
+
+                assert (size == nAesKeyLength);
+
+                _aesKey = new byte[size];
+                try {
+                    BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
+                    buf.read(_aesKey, 0, _aesKey.length);
+                    buf.close();
+                } catch (Exception e) {
+                    //TODO
+                }
+
+                _isInitialised = true;
+            }
+            else {
+                //TODO: throw exception?
+            }
+        }
+
+        public static boolean isInitialised() {
+            return _isInitialised;
         }
 
         public static int getHeaderDetailLength() {
@@ -1809,8 +1865,9 @@ public class DLFileSystem extends FileSystem
             return headerDetailPadded.getBytes("UTF-8");
         }
 
-        public static byte[] getSecretKey() throws UnsupportedEncodingException {
-            return "0123456789abcdef".getBytes("UTF-8");
+        public static byte[] getSecretKey() {
+            //return "0123456789abcdef".getBytes("UTF-8");
+            return _aesKey;
         }
 
         public static byte[] generateRandomIV() throws NoSuchAlgorithmException {

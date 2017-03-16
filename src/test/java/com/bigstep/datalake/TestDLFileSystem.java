@@ -68,8 +68,8 @@ public class TestDLFileSystem {
         SecureRandom random = new SecureRandom();
         String randomNameSuffix = new BigInteger(130, random).toString(32);;
 
-        String pathSrc = getClass().getResource("/baseballdatabank-master/core/test_file4.txt").toURI().getRawPath();
-        String pathDest = getBasePath()+"/enc_test/AllstarFull" + randomNameSuffix + ".csv";
+        String pathSrc = getClass().getResource("/baseballdatabank-master/core/test_file2.csv").toURI().getRawPath();
+        String pathDest = getBasePath()+"/enc_test2/k2_AllstarFull" + randomNameSuffix + ".csv";
 
         FsShell shell = new FsShell();
         shell.setConf(getConf());
@@ -108,7 +108,7 @@ public class TestDLFileSystem {
 
     @Test
     public void testShellText() throws Exception {
-        String pathSrc = getBasePath()+"/enc_test/test_append.csv";
+        String pathSrc = getBasePath()+"/enc_test2/k2_AllstarFullvs39lgpfbsgrr42gg7dap4h1et.csv";
 
         FsShell shell = new FsShell();
         shell.setConf(getConf());
