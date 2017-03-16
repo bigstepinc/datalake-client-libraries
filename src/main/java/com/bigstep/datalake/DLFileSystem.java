@@ -674,21 +674,6 @@ public class DLFileSystem extends FileSystem
     }
 
     @Override
-    public void copyFromLocalFile(boolean delSrc, boolean overwrite, Path[] srcs, Path dst) throws IOException {
-        throw new IOException("ASDF 1");
-//        Configuration conf = this.getConf();
-        //      FileUtil.copy(getLocal(conf), srcs[0], this, new Path("/tmp/datalake-client/"), false, false, conf);
-        //    FileUtil.copy(getLocal(conf), srcs, this, dst, delSrc, overwrite, conf);
-    }
-
-    @Override
-    public void copyFromLocalFile(boolean delSrc, boolean overwrite, Path src, Path dst) throws IOException {
-        Configuration conf = this.getConf();
-        FileUtil.copy(getLocal(conf), src, this, dst, delSrc, overwrite, conf);
-        throw new IOException("ASDF 2");
-    }
-
-    @Override
     public FileStatus getFileStatus(Path f) throws IOException {
         statistics.incrementReadOps(1);
         return makeQualified(getHdfsFileStatus(f), f);
