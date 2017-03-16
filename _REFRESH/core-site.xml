@@ -1,0 +1,63 @@
+<configuration>
+  <!-- use this only if it does not affect your hadoop site. For standalone spark
+deployments this is useful as you can use relative paths eg ./bin/dl -ls / -->
+  
+  <property>
+    <name>fs.defaultFS</name>
+    <value>dl://n59962-data-lake01-lab-master-bucharest.integration.bigstep.io:14000/data_lake/dl2353</value>
+  </property>
+
+  <property>
+    <name>fs.dl.impl</name>
+    <value>com.bigstep.datalake.DLFileSystem</value>
+  </property>
+
+  <property>
+    <name>fs.dl.impl.kerberosPrincipal</name>
+    <value>k4236@integration.bigstepcloud.com</value>
+  </property>
+
+    <!-- The location of the keytab. Use the ./bin/dl genkeytab command to generate one:
+    ./bin/dl genkeytab kxxx@bigstep.io /etc/kxxxx.keytab -->
+  <property>
+    <name>fs.dl.impl.kerberosKeytab</name>
+    <value>/etc/k4236.keytab</value>
+  </property>
+
+  <property>
+    <name>fs.dl.impl.kerberosRealm</name>
+    <value>integration.bigstepcloud.com</value>
+  </property>
+
+  <property>
+    <name>fs.dl.impl.homeDirectory</name>
+    <value>/data_lake/dl2353</value>
+  </property>
+
+  <property>
+    <name>fs.dl.impl.defaultEndpoint</name>
+    <value>/data_lake/dl2353</value>
+  </property>
+
+    <!--This is the default permission set for uploaded files. Default value: 00640 -->
+  <property>
+    <name>fs.dl.impl.defaultFilePermissions</name>
+    <value>00640</value>
+  </property>
+
+   <!--This is the umask to be enforced on the permissions being
+    deployed in the datalake. As a security precaution, to prevent accidentally
+    making the files publicly available, te default mask (007) overwrites all the
+    'others' settings. Default value: 007 -->
+  <property>
+    <name>fs.dl.impl.defaultUMask</name>
+    <value>007</value>
+  </property>
+
+  <!-- This is provided to allow the interaction with an unprotected webhdfs endpoint
+  such as during testing. Never use in production. Default value: https-->
+  <property>
+    <name>fs.dl.impl.transportScheme</name>
+    <value>http</value>
+  </property>
+</configuration>
