@@ -22,9 +22,16 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
+import org.apache.commons.crypto.cipher.CryptoCipher;
+import org.apache.commons.crypto.stream.CtrCryptoOutputStream;
+import org.apache.commons.crypto.stream.PositionedCryptoInputStream;
+import org.apache.commons.crypto.stream.input.Input;
+import org.apache.commons.crypto.stream.input.StreamInput;
+import org.apache.commons.crypto.utils.Utils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.crypto.CryptoOutputStream;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
@@ -56,13 +63,18 @@ import org.apache.hadoop.security.token.TokenSelector;
 import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenSelector;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.StringUtils;
+import org.tukaani.xz.SeekableInputStream;
 
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.ws.rs.core.MediaType;
 import java.io.*;
 import java.net.*;
-import java.security.NoSuchAlgorithmException;
-import java.security.Principal;
-import java.security.PrivilegedExceptionAction;
+import java.nio.ByteBuffer;
+import java.security.*;
 import java.util.*;
 
 /**
@@ -662,6 +674,21 @@ public class DLFileSystem extends FileSystem
     }
 
     @Override
+    public void copyFromLocalFile(boolean delSrc, boolean overwrite, Path[] srcs, Path dst) throws IOException {
+        throw new IOException("ASDF 1");
+//        Configuration conf = this.getConf();
+        //      FileUtil.copy(getLocal(conf), srcs[0], this, new Path("/tmp/datalake-client/"), false, false, conf);
+        //    FileUtil.copy(getLocal(conf), srcs, this, dst, delSrc, overwrite, conf);
+    }
+
+    @Override
+    public void copyFromLocalFile(boolean delSrc, boolean overwrite, Path src, Path dst) throws IOException {
+        Configuration conf = this.getConf();
+        FileUtil.copy(getLocal(conf), src, this, dst, delSrc, overwrite, conf);
+        throw new IOException("ASDF 2");
+    }
+
+    @Override
     public FileStatus getFileStatus(Path f) throws IOException {
         statistics.incrementReadOps(1);
         return makeQualified(getHdfsFileStatus(f), f);
@@ -954,7 +981,7 @@ public class DLFileSystem extends FileSystem
         statistics.incrementWriteOps(1);
 
         final HttpOpParam.Op op = PutOpParam.Op.CREATE;
-        return new FsPathOutputStreamRunner(op, f, bufferSize,
+        return new EncryptedFsPathOutputStreamRunner(op, f, bufferSize,
                 new PermissionParam(applyUMask(permission)),
                 new OverwriteParam(overwrite),
                 new BufferSizeParam(bufferSize),
@@ -969,7 +996,7 @@ public class DLFileSystem extends FileSystem
         statistics.incrementWriteOps(1);
 
         final HttpOpParam.Op op = PostOpParam.Op.APPEND;
-        return new FsPathOutputStreamRunner(op, f, bufferSize,
+        return new EncryptedFsPathOutputStreamRunner(op, f, bufferSize,
                 new BufferSizeParam(bufferSize)
         ).run();
     }
@@ -995,11 +1022,28 @@ public class DLFileSystem extends FileSystem
     ) throws IOException {
         statistics.incrementReadOps(1);
         final HttpOpParam.Op op = GetOpParam.Op.OPEN;
+
+        int nHeaderSize = DLEncryptionUtils.getHeaderDetailLength();
+        byte[] b = new byte[nHeaderSize];
+        byte[] key = DLEncryptionUtils.getSecretKey();
+        int nBlockSize = key.length;
+        byte[] initVector = new byte[nBlockSize];
+
         // use a runner so the open can recover from an invalid token
-        FsPathConnectionRunner runner =
-                new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize));
-        return new FSDataInputStream(new OffsetUrlInputStream(
-                new UnresolvedUrlOpener(runner), new OffsetUrlOpener(null)));
+        FsPathConnectionRunner runnerHeader =
+                new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize), new LengthParam((long) nHeaderSize + nBlockSize));
+        OffsetUrlInputStream inputStreamHeader = new OffsetUrlInputStream(new UnresolvedUrlOpener(runnerHeader), new OffsetUrlOpener(null));
+
+        inputStreamHeader.readFully(0, b, 0, nHeaderSize);
+        inputStreamHeader.readFully(nHeaderSize, initVector, 0, nBlockSize);
+
+        FsPathConnectionRunner runnerData =
+                new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize), new OffsetParam((long) nHeaderSize + nBlockSize));
+        OffsetUrlInputStream inputStreamData = new OffsetUrlInputStream(new UnresolvedUrlOpener(runnerData), new OffsetUrlOpener(null));
+
+        Properties props = new Properties();
+        props.put("commons.crypto.stream.buffer.size", buffersize);
+        return new FSDataInputStream(new DLPositionedCryptoInputStream(props, new DLStreamInput(inputStreamData, buffersize), key, initVector, 0L));
     }
 
     @Override
@@ -1476,6 +1520,10 @@ public class DLFileSystem extends FileSystem
             this.parameters = parameters;
         }
 
+        public Path getFSPath() {
+            return this.fspath;
+        }
+
         @Override
         protected URL getUrl() throws IOException {
             if (excludeDatanodes.getValue() != null) {
@@ -1556,6 +1604,92 @@ public class DLFileSystem extends FileSystem
         @Override
         Boolean decodeResponse(Map<?, ?> json) throws IOException {
             return (Boolean) json.get("boolean");
+        }
+    }
+
+    class EncryptedFsPathOutputStreamRunner extends AbstractFsPathRunner<FSDataOutputStream> {
+        private final int bufferSize;
+
+        EncryptedFsPathOutputStreamRunner(Op op, Path fspath, int bufferSize,
+                                 Param<?, ?>... parameters) {
+            super(op, fspath, parameters);
+            this.bufferSize = bufferSize;
+        }
+
+        @Override
+        FSDataOutputStream getResponse(final HttpURLConnection conn)
+                throws IOException {
+            int nHeaderSize = DLEncryptionUtils.getHeaderDetailLength();
+            byte[] b = new byte[nHeaderSize];
+            byte[] key = DLEncryptionUtils.getSecretKey();
+            int nBlockSize = key.length;
+            byte[] initVector = new byte[nBlockSize];
+
+            if (this.op == PostOpParam.Op.APPEND)
+            {
+                // get IV
+                FsPathConnectionRunner runnerHeader =
+                        new FsPathConnectionRunner(GetOpParam.Op.OPEN, this.getFSPath(), new BufferSizeParam(bufferSize), new LengthParam((long) nHeaderSize + nBlockSize));
+                OffsetUrlInputStream inputStreamHeader = new OffsetUrlInputStream(new UnresolvedUrlOpener(runnerHeader), new OffsetUrlOpener(null));
+
+                inputStreamHeader.readFully(0, b, 0, nHeaderSize);
+                inputStreamHeader.readFully(nHeaderSize, initVector, 0, nBlockSize);
+
+                //get fileSize
+                long fileSize;
+                HdfsFileStatus fileStatus = getHdfsFileStatus(this.getFSPath());
+                fileSize = fileStatus.getLen();
+
+                BufferedOutputStream outputStream = new BufferedOutputStream(conn.getOutputStream(), bufferSize);
+
+                Properties props = new Properties();
+                props.put("commons.crypto.stream.buffer.size", bufferSize);
+
+                CtrCryptoOutputStream cryptoOutputStream = new CtrCryptoOutputStream(props, outputStream, key, initVector, fileSize - nHeaderSize - nBlockSize);
+                return new FSDataOutputStream(cryptoOutputStream, statistics) {
+                    @Override
+                    public void close() throws IOException {
+                        try {
+                            super.close();
+                        } finally {
+                            try {
+                                validateResponse(op, conn, true);
+                            } finally {
+                                conn.disconnect();
+                            }
+                        }
+                    }
+                };
+            }
+            else
+            {
+                try {
+                    initVector = DLEncryptionUtils.generateRandomIV();
+                }
+                catch (Exception ex) {
+                    // TODO
+                }
+                BufferedOutputStream outputStream = new BufferedOutputStream(conn.getOutputStream(), bufferSize);
+                outputStream.write(DLEncryptionUtils.getHeaderDetail());
+                outputStream.write(initVector);
+
+                Properties props = new Properties();
+                props.put("commons.crypto.stream.buffer.size", bufferSize);
+                return new FSDataOutputStream(new CtrCryptoOutputStream(props, outputStream, key, initVector), statistics) {
+                    @Override
+                    public void close() throws IOException {
+                        try {
+                            super.close();
+                        } finally {
+                            try {
+                                validateResponse(op, conn, true);
+                            } finally {
+                                conn.disconnect();
+                            }
+                        }
+                    }
+                };
+            }
         }
     }
 
@@ -1659,6 +1793,134 @@ public class DLFileSystem extends FileSystem
             final URL offsetUrl = offset == 0L ? url
                     : new URL(url + "&" + new OffsetParam(offset));
             return new URLRunner(GetOpParam.Op.OPEN, offsetUrl, resolved).run();
+        }
+    }
+
+    private static class DLEncryptionUtils {
+        private static String strName = "DLENCRYPTION";
+        private static String strVersion = "1.0";
+        private static String strCipher = "AES/CTR/NoPadding";
+        private final static int nHeaderDetailLength = 128;
+        private final static int nIVLength = 16;
+
+        private static SecureRandom secureRandom = null;
+
+        public static String getTransform() {
+            return strCipher;
+        }
+
+        public static int getHeaderDetailLength() {
+            return nHeaderDetailLength;
+        }
+
+        public static int getIVLength() {
+            return nIVLength;
+        }
+
+        public static byte[] getHeaderDetail() throws UnsupportedEncodingException {
+            //TODO: change language level to 1.8 so that StringBuilder may be used;
+            String headerDetail = strName + ";" + strVersion + ";" + strCipher;
+            String headerDetailPadded = String.format("%1$-" + nHeaderDetailLength + "s", headerDetail).replace(' ', '#');
+            return headerDetailPadded.getBytes("UTF-8");
+        }
+
+        public static byte[] getSecretKey() throws UnsupportedEncodingException {
+            return "0123456789abcdef".getBytes("UTF-8");
+        }
+
+        public static byte[] generateRandomIV() throws NoSuchAlgorithmException {
+            if (secureRandom == null) {
+                secureRandom = SecureRandom.getInstance("SHA1PRNG");
+            }
+
+            byte[] initVector = new byte[nIVLength];
+            secureRandom.nextBytes(initVector);
+
+            return initVector;
+        }
+    }
+
+    private class DLPositionedCryptoInputStream extends PositionedCryptoInputStream implements Seekable, PositionedReadable {
+
+        public DLPositionedCryptoInputStream(Properties props, Input in, byte[] key, byte[] iv, long streamOffset) throws IOException {
+            super(props, in, key, iv, streamOffset);
+        }
+
+        protected DLPositionedCryptoInputStream(Properties props, Input input, CryptoCipher cipher, int bufferSize, byte[] key, byte[] iv, long streamOffset) throws IOException {
+            super(props, input, cipher, bufferSize, key, iv, streamOffset);
+        }
+
+        @Override
+        public long getPos() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public boolean seekToNewSource(long l) throws IOException {
+            return false;
+        }
+    }
+
+    private class DLStreamInput implements Input {
+        private final byte[] buf;
+        private final int bufferSize;
+        final OffsetUrlInputStream in;
+
+        public DLStreamInput(OffsetUrlInputStream inputStream, int bufferSize) {
+            this.in = inputStream;
+            this.bufferSize = bufferSize;
+            this.buf = new byte[bufferSize];
+        }
+
+        public int read(ByteBuffer dst) throws IOException {
+            int remaining = dst.remaining();
+            int read = 0;
+
+            while(remaining > 0) {
+                int n = this.in.read(this.buf, 0, Math.min(remaining, this.bufferSize));
+                if(n == -1) {
+                    if(read == 0) {
+                        read = -1;
+                    }
+                    break;
+                }
+
+                if(n > 0) {
+                    dst.put(this.buf, 0, n);
+                    read += n;
+                    remaining -= n;
+                }
+            }
+
+            return read;
+        }
+
+        public long skip(long n) throws IOException {
+            return this.in.skip(n);
+        }
+
+        public int available() throws IOException {
+            return this.in.available();
+        }
+
+        public int read(long position, byte[] buffer, int offset, int length) throws IOException {
+            throw new UnsupportedOperationException("Positioned read is not supported by this implementation");
+        }
+
+        public void seek(long position) throws IOException {
+            this.seekWithHeader(position);
+        }
+
+        public void seekWithoutHeader(long position) throws IOException {
+            this.in.seek(position);
+        }
+
+        public void seekWithHeader(long position) throws IOException {
+            this.in.seek(position + DLEncryptionUtils.getHeaderDetailLength() + DLEncryptionUtils.getIVLength());
+        }
+
+        public void close() throws IOException {
+            this.in.close();
         }
     }
 }
