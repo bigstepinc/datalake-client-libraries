@@ -65,7 +65,7 @@ deployments this is useful as you can use relative paths eg ./bin/dl -ls / -->
   uploading/downloading. If property is missing, the default value is false. -->
   <property>
     <name>fs.fl.impl.shouldUseEncryption</name>
-    <value>true</value>
+    <value>false</value>
   </property>
 
   <!-- The location of the AES key. The file should be exactly 16 bytes long.

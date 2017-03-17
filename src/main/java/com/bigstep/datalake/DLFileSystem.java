@@ -992,13 +992,24 @@ public class DLFileSystem extends FileSystem
         statistics.incrementWriteOps(1);
 
         final HttpOpParam.Op op = PutOpParam.Op.CREATE;
-        return new EncryptedFsPathOutputStreamRunner(op, f, bufferSize,
-                new PermissionParam(applyUMask(permission)),
-                new OverwriteParam(overwrite),
-                new BufferSizeParam(bufferSize),
-                new ReplicationParam(replication),
-                new BlockSizeParam(blockSize)
-        ).run();
+        if (this.shouldUseEncryption) {
+            return new EncryptedFsPathOutputStreamRunner(op, f, bufferSize,
+                    new PermissionParam(applyUMask(permission)),
+                    new OverwriteParam(overwrite),
+                    new BufferSizeParam(bufferSize),
+                    new ReplicationParam(replication),
+                    new BlockSizeParam(blockSize)
+            ).run();
+        }
+        else {
+            return new FsPathOutputStreamRunner(op, f, bufferSize,
+                    new PermissionParam(applyUMask(permission)),
+                    new OverwriteParam(overwrite),
+                    new BufferSizeParam(bufferSize),
+                    new ReplicationParam(replication),
+                    new BlockSizeParam(blockSize)
+            ).run();
+        }
     }
 
     @Override
@@ -1007,9 +1018,16 @@ public class DLFileSystem extends FileSystem
         statistics.incrementWriteOps(1);
 
         final HttpOpParam.Op op = PostOpParam.Op.APPEND;
-        return new EncryptedFsPathOutputStreamRunner(op, f, bufferSize,
-                new BufferSizeParam(bufferSize)
-        ).run();
+        if (this.shouldUseEncryption) {
+            return new EncryptedFsPathOutputStreamRunner(op, f, bufferSize,
+                    new BufferSizeParam(bufferSize)
+            ).run();
+        }
+        else {
+            return new FsPathOutputStreamRunner(op, f, bufferSize,
+                    new BufferSizeParam(bufferSize)
+            ).run();
+        }
     }
 
     @Override
@@ -1034,27 +1052,36 @@ public class DLFileSystem extends FileSystem
         statistics.incrementReadOps(1);
         final HttpOpParam.Op op = GetOpParam.Op.OPEN;
 
-        int nHeaderSize = DLEncryptionUtils.getHeaderDetailLength();
-        byte[] b = new byte[nHeaderSize];
-        byte[] key = DLEncryptionUtils.getSecretKey();
-        int nBlockSize = key.length;
-        byte[] initVector = new byte[nBlockSize];
+        if (this.shouldUseEncryption) {
+            int nHeaderSize = DLEncryptionUtils.getHeaderDetailLength();
+            byte[] b = new byte[nHeaderSize];
+            byte[] key = DLEncryptionUtils.getSecretKey();
+            int nBlockSize = key.length;
+            byte[] initVector = new byte[nBlockSize];
 
-        // use a runner so the open can recover from an invalid token
-        FsPathConnectionRunner runnerHeader =
-                new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize), new LengthParam((long) nHeaderSize + nBlockSize));
-        OffsetUrlInputStream inputStreamHeader = new OffsetUrlInputStream(new UnresolvedUrlOpener(runnerHeader), new OffsetUrlOpener(null));
+            // use a runner so the open can recover from an invalid token
+            FsPathConnectionRunner runnerHeader =
+                    new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize), new LengthParam((long) nHeaderSize + nBlockSize));
+            OffsetUrlInputStream inputStreamHeader = new OffsetUrlInputStream(new UnresolvedUrlOpener(runnerHeader), new OffsetUrlOpener(null));
 
-        inputStreamHeader.readFully(0, b, 0, nHeaderSize);
-        inputStreamHeader.readFully(nHeaderSize, initVector, 0, nBlockSize);
+            inputStreamHeader.readFully(0, b, 0, nHeaderSize);
+            inputStreamHeader.readFully(nHeaderSize, initVector, 0, nBlockSize);
 
-        FsPathConnectionRunner runnerData =
-                new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize), new OffsetParam((long) nHeaderSize + nBlockSize));
-        OffsetUrlInputStream inputStreamData = new OffsetUrlInputStream(new UnresolvedUrlOpener(runnerData), new OffsetUrlOpener(null));
+            FsPathConnectionRunner runnerData =
+                    new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize), new OffsetParam((long) nHeaderSize + nBlockSize));
+            OffsetUrlInputStream inputStreamData = new OffsetUrlInputStream(new UnresolvedUrlOpener(runnerData), new OffsetUrlOpener(null));
 
-        Properties props = new Properties();
-        props.put("commons.crypto.stream.buffer.size", buffersize);
-        return new FSDataInputStream(new DLPositionedCryptoInputStream(props, new DLStreamInput(inputStreamData, buffersize), key, initVector, 0L));
+            Properties props = new Properties();
+            props.put("commons.crypto.stream.buffer.size", buffersize);
+            return new FSDataInputStream(new DLPositionedCryptoInputStream(props, new DLStreamInput(inputStreamData, buffersize), key, initVector, 0L));
+        }
+        else {
+            FsPathConnectionRunner runner = new FsPathConnectionRunner(op, f, new BufferSizeParam(buffersize));
+            return new FSDataInputStream(new OffsetUrlInputStream(
+                    new UnresolvedUrlOpener(runner),
+                    new OffsetUrlOpener(null)
+            ));
+        }
     }
 
     @Override
