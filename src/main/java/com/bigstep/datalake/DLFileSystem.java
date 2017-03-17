@@ -113,6 +113,7 @@ public class DLFileSystem extends FileSystem
     public static final String FS_DL_IMPL_KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
     public static final String FS_DL_IMPL_DEFAULT_TRANSPORT_SCHEME = "https";
     public static final String FS_DL_IMPL_TRANSPORT_SCHEME_CONFIG_NAME = "fs.dl.impl.transportScheme";
+    public static final String FS_DL_IMPL_SHOULD_USE_ENCRYPTION_CONFIG_NAME = "fs.fl.impl.shouldUseEncryption";
     public static final String FS_DL_IMPL_ENCRYPTION_KEY_PATH_CONFIG_NAME = "fs.dl.impl.encryptionKeyPath";
     private static final String DEFAULT_FILE_PERMISSIONS = "00640";
     private static final String DEFAULT_UMASK = "00007";
@@ -146,6 +147,7 @@ public class DLFileSystem extends FileSystem
     private String homeDirectory;
     private short defaultFilePermissions;
     private short defaultUMask;
+    private boolean shouldUseEncryption = false;
 
     private String transportScheme;
     private String defaultEndpoint;
@@ -360,15 +362,21 @@ public class DLFileSystem extends FileSystem
         return kerberosIdentity;
     }
 
-    private void initialiseAesEncryption(Configuration conf) {
+    private void initialiseAesEncryption(Configuration conf) throws IOException {
         String aesKeyPath = conf.get(FS_DL_IMPL_ENCRYPTION_KEY_PATH_CONFIG_NAME);
+
+        if (this.shouldUseEncryption && aesKeyPath == null)
+            throw new IOException("Datalake encryption is set to true, but no AES key path is provided.");
 
         if (aesKeyPath != null) {
             try {
                 DLEncryptionUtils.loadAesKeyFromStringPath(aesKeyPath);
             } catch (IOException e) {
-                //TODO
+                LOG.error(e);
             }
+        }
+        else {
+
         }
     }
 
@@ -384,7 +392,10 @@ public class DLFileSystem extends FileSystem
 
         kerberosIdentity = initialiseKerberosIdentity(conf);
 
-        initialiseAesEncryption(conf);
+        this.shouldUseEncryption = conf.getBoolean(FS_DL_IMPL_SHOULD_USE_ENCRYPTION_CONFIG_NAME, false);
+        if (this.shouldUseEncryption) {
+            initialiseAesEncryption(conf);
+        }
 
         this.homeDirectory = conf.get(FS_DL_IMPL_HOME_DIRECTORY);
 
@@ -1866,7 +1877,6 @@ public class DLFileSystem extends FileSystem
         }
 
         public static byte[] getSecretKey() {
-            //return "0123456789abcdef".getBytes("UTF-8");
             return _aesKey;
         }
 

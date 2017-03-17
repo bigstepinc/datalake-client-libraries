@@ -61,7 +61,15 @@ deployments this is useful as you can use relative paths eg ./bin/dl -ls / -->
     <value>http</value>
   </property>
 
-  <!-- The location of the AES key. The file should be exactly 16 bytes long. -->
+  <!-- This tells the DataLake client if it should encrypt/decrypt files when
+  uploading/downloading. If property is missing, the default value is false. -->
+  <property>
+    <name>fs.fl.impl.shouldUseEncryption</name>
+    <value>true</value>
+  </property>
+
+  <!-- The location of the AES key. The file should be exactly 16 bytes long.
+  This property is required if fs.fl.impl.shouldUseEncryption is set to true. -->
   <property>
     <name>fs.dl.impl.encryptionKeyPath</name>
     <value>C:\ExportVHosts\datalake_key_test\dl_key2</value>
