@@ -32,3 +32,4 @@ _REFRESH/core-site.xml
 _REFRESH/dl
 script_package_refresh.sh
 src/test/resources/krb5.conf
+src/test/resources/core-site.xml
