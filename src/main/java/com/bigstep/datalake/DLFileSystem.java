@@ -28,6 +28,7 @@ import org.apache.commons.crypto.stream.PositionedCryptoInputStream;
 import org.apache.commons.crypto.stream.input.Input;
 import org.apache.commons.crypto.stream.input.StreamInput;
 import org.apache.commons.crypto.utils.Utils;
+import org.apache.commons.io.IOExceptionWithCause;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -373,6 +374,7 @@ public class DLFileSystem extends FileSystem
                 DLEncryptionUtils.loadAesKeyFromStringPath(aesKeyPath);
             } catch (IOException e) {
                 LOG.error(e);
+                throw e;
             }
         }
         else {
@@ -1705,7 +1707,8 @@ public class DLFileSystem extends FileSystem
                     initVector = DLEncryptionUtils.generateRandomIV();
                 }
                 catch (Exception ex) {
-                    // TODO
+                    LOG.error(ex);
+                    return null;
                 }
                 BufferedOutputStream outputStream = new BufferedOutputStream(conn.getOutputStream(), bufferSize);
                 outputStream.write(DLEncryptionUtils.getHeaderDetail());
@@ -1869,18 +1872,14 @@ public class DLFileSystem extends FileSystem
                 assert (size == nAesKeyLength);
 
                 _aesKey = new byte[size];
-                try {
-                    BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
-                    buf.read(_aesKey, 0, _aesKey.length);
-                    buf.close();
-                } catch (Exception e) {
-                    //TODO
-                }
+                BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
+                buf.read(_aesKey, 0, _aesKey.length);
+                buf.close();
 
                 _isInitialised = true;
             }
             else {
-                //TODO: throw exception?
+                throw new IOException("DLEncryption already initialized.");
             }
         }
 
