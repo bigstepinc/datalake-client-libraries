@@ -371,7 +371,7 @@ public class DLFileSystem extends FileSystem
 
         if (aesKeyPath != null) {
             try {
-                DLEncryptionUtils.loadAesKeyFromStringPath(aesKeyPath);
+                DLEncryptionUtils.getInstance().loadAesKeyFromStringPath(aesKeyPath);
             } catch (IOException e) {
                 LOG.error(e);
                 throw e;
@@ -1055,9 +1055,11 @@ public class DLFileSystem extends FileSystem
         final HttpOpParam.Op op = GetOpParam.Op.OPEN;
 
         if (this.shouldUseEncryption) {
-            int nHeaderSize = DLEncryptionUtils.getHeaderDetailLength();
+            DLEncryptionUtils dlenc = DLEncryptionUtils.getInstance();
+
+            int nHeaderSize = dlenc.getHeaderDetailLength();
             byte[] b = new byte[nHeaderSize];
-            byte[] key = DLEncryptionUtils.getSecretKey();
+            byte[] key = dlenc.getSecretKey();
             int nBlockSize = key.length;
             byte[] initVector = new byte[nBlockSize];
 
@@ -1659,9 +1661,11 @@ public class DLFileSystem extends FileSystem
         @Override
         FSDataOutputStream getResponse(final HttpURLConnection conn)
                 throws IOException {
-            int nHeaderSize = DLEncryptionUtils.getHeaderDetailLength();
+            DLEncryptionUtils dlenc = DLEncryptionUtils.getInstance();
+
+            int nHeaderSize = dlenc.getHeaderDetailLength();
             byte[] b = new byte[nHeaderSize];
-            byte[] key = DLEncryptionUtils.getSecretKey();
+            byte[] key = dlenc.getSecretKey();
             int nBlockSize = key.length;
             byte[] initVector = new byte[nBlockSize];
 
@@ -1704,14 +1708,14 @@ public class DLFileSystem extends FileSystem
             else
             {
                 try {
-                    initVector = DLEncryptionUtils.generateRandomIV();
+                    initVector = dlenc.generateRandomIV();
                 }
                 catch (Exception ex) {
                     LOG.error(ex);
                     return null;
                 }
                 BufferedOutputStream outputStream = new BufferedOutputStream(conn.getOutputStream(), bufferSize);
-                outputStream.write(DLEncryptionUtils.getHeaderDetail());
+                outputStream.write(dlenc.getHeaderDetail());
                 outputStream.write(initVector);
 
                 Properties props = new Properties();
@@ -1837,87 +1841,6 @@ public class DLFileSystem extends FileSystem
         }
     }
 
-    private static class DLEncryptionUtils {
-        private static String strName = "DLENCRYPTION";
-        private static String strVersion = "1.0";
-        private static String strCipher = "AES/CTR/NoPadding";
-        private final static int nHeaderDetailLength = 128;
-        private final static int nIVLength = 16;
-        private final static int nAesKeyLength = 16;
-        private static boolean _isInitialised = false;
-        private static String _aesKeyPath;
-        private static byte[] _aesKey;
-
-        private static SecureRandom secureRandom = null;
-
-        public static String getTransform() {
-            return strCipher;
-        }
-
-        public static void loadAesKeyFromStringPath(String aesKeyPath) throws IOException {
-            _aesKeyPath = aesKeyPath;
-
-            if (!_isInitialised) {
-                File aesKeyFile = new File(_aesKeyPath);
-
-                if (!aesKeyFile.exists())
-                    throw new IOException("AES key file " + _aesKeyPath + " not found");
-
-                if (!aesKeyFile.canRead())
-                    throw new IOException("AES key file " + _aesKeyPath + " cannot be accessed");
-
-                File file = new File(_aesKeyPath);
-                int size = (int) file.length();
-
-                assert (size == nAesKeyLength);
-
-                _aesKey = new byte[size];
-                BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
-                buf.read(_aesKey, 0, _aesKey.length);
-                buf.close();
-
-                _isInitialised = true;
-            }
-            else {
-                throw new IOException("DLEncryption already initialized.");
-            }
-        }
-
-        public static boolean isInitialised() {
-            return _isInitialised;
-        }
-
-        public static int getHeaderDetailLength() {
-            return nHeaderDetailLength;
-        }
-
-        public static int getIVLength() {
-            return nIVLength;
-        }
-
-        public static byte[] getHeaderDetail() throws UnsupportedEncodingException {
-            //TODO: change language level to 1.8 so that StringBuilder may be used;
-            String headerDetail = strName + ";" + strVersion + ";" + strCipher;
-            String headerDetailPadded = String.format("%1$-" + nHeaderDetailLength + "s", headerDetail).replace(' ', '#');
-            return headerDetailPadded.getBytes("UTF-8");
-        }
-
-        public static byte[] getSecretKey() {
-            return _aesKey;
-        }
-
-        public static byte[] generateRandomIV() throws NoSuchAlgorithmException {
-            if (secureRandom == null) {
-                secureRandom = SecureRandom.getInstance("SHA1PRNG");
-            }
-
-            byte[] initVector = new byte[nIVLength];
-            secureRandom.nextBytes(initVector);
-
-            return initVector;
-        }
-    }
-
     private class DLPositionedCryptoInputStream extends PositionedCryptoInputStream implements Seekable, PositionedReadable {
 
         public DLPositionedCryptoInputStream(Properties props, Input in, byte[] key, byte[] iv, long streamOffset) throws IOException {
@@ -1994,7 +1917,8 @@ public class DLFileSystem extends FileSystem
         }
 
         public void seekWithHeader(long position) throws IOException {
-            this.in.seek(position + DLEncryptionUtils.getHeaderDetailLength() + DLEncryptionUtils.getIVLength());
+            DLEncryptionUtils dlenc = DLEncryptionUtils.getInstance();
+            this.in.seek(position + dlenc.getHeaderDetailLength() + dlenc.getIVLength());
         }
 
         public void close() throws IOException {

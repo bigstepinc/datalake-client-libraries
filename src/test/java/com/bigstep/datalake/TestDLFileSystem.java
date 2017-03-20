@@ -108,7 +108,7 @@ public class TestDLFileSystem {
 
     @Test
     public void testShellText() throws Exception {
-        String pathSrc = getBasePath()+"/enc_test2/k2_AllstarFullvs39lgpfbsgrr42gg7dap4h1et.csv";
+        String pathSrc = getBasePath()+"/enc_test2/k2_test_append.csv";
 
         FsShell shell = new FsShell();
         shell.setConf(getConf());
@@ -142,7 +142,7 @@ public class TestDLFileSystem {
     @Test
     public void testAppendToFile() throws Exception {
         String pathSrc = getClass().getResource("/baseballdatabank-master/core/test_file1.csv").toURI().getRawPath();
-        String pathDest = getBasePath()+"/not_enc/test_append3.csv";
+        String pathDest = getBasePath()+"/enc_test2/k2_test_append.csv";
 
         FsShell shell = new FsShell();
         shell.setConf(getConf());
