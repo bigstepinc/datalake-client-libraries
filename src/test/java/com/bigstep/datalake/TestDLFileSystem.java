@@ -3,6 +3,7 @@ package com.bigstep.datalake;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FsShell;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.web.resources.GetOpParam;
 import org.apache.hadoop.hdfs.web.resources.HttpOpParam;
@@ -15,6 +16,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+
+import java.security.SecureRandom;
+import java.math.BigInteger;
 
 import static org.junit.Assert.assertEquals;
 
@@ -60,6 +64,60 @@ public class TestDLFileSystem {
     }
 
     @Test
+    public void testShellPut() throws Exception {
+        SecureRandom random = new SecureRandom();
+        String randomNameSuffix = new BigInteger(130, random).toString(32);;
+
+        String pathSrc = getClass().getResource("/baseballdatabank-master/core/test_file2.csv").toURI().getRawPath();
+        String pathDest = getBasePath()+"/not_enc/k2_AllstarFull" + randomNameSuffix + ".csv";
+
+        FsShell shell = new FsShell();
+        shell.setConf(getConf());
+
+        String[] argv = {"-put", pathSrc, pathDest};
+        shell.run(argv);
+    }
+
+    @Test
+    public void testFSPut() throws Exception {
+        SecureRandom random = new SecureRandom();
+        String randomNameSuffix = new BigInteger(130, random).toString(32);;
+        String path = getBasePath()+"/baseballdatabank-master/core/AllstarFull" + randomNameSuffix + ".csv";
+
+        Path hdfsPath = new Path(path);
+
+        FileSystem fs = hdfsPath.getFileSystem(getConf());
+
+        Path localFilePath = new Path(getClass().getResource("/baseballdatabank-master/core/AllstarFull.csv").toURI().getRawPath());
+        fs.mkdirs(new Path("/baseballdatabank-master"));
+        fs.mkdirs(new Path("/baseballdatabank-master/core"));
+        fs.copyFromLocalFile(localFilePath, hdfsPath);
+    }
+
+    @Test
+    public void testShellGet() throws Exception {
+        String pathSrc = getBasePath()+"/enc_test/AllstarFull.csv";
+        String pathDest = "/C:/ExportVHosts/datalake-client-libraries/target/test-classes/baseballdatabank-master/core/AllstarFull_DEC.csv";
+
+        FsShell shell = new FsShell();
+        shell.setConf(getConf());
+
+        String[] argv = {"-get", pathSrc, pathDest};
+        shell.run(argv);
+    }
+
+    @Test
+    public void testShellText() throws Exception {
+        String pathSrc = getBasePath()+"/enc_test2/k2_test_append.csv";
+
+        FsShell shell = new FsShell();
+        shell.setConf(getConf());
+
+        String[] argv = {"-text", pathSrc};
+        shell.run(argv);
+    }
+
+    @Test
     public void testGetFileStatus() throws IOException {
         String path = getBasePath()+"/baseballdatabank-master/core/AllstarFull.csv";
         Path hdfsPath = new Path(path);
@@ -79,6 +137,24 @@ public class TestDLFileSystem {
         FileStatus[] status=fs.listStatus(hdfsPath);
 
         assertEquals(path, status[0].getPath().toString());
+    }
+
+    @Test
+    public void testAppendToFile() throws Exception {
+        String pathSrc = getClass().getResource("/baseballdatabank-master/core/test_file1.csv").toURI().getRawPath();
+        String pathDest = getBasePath()+"/enc_test2/k2_test_append.csv";
+
+        FsShell shell = new FsShell();
+        shell.setConf(getConf());
+
+        String[] argv = {"-put", pathSrc, pathDest};
+        shell.run(argv);
+
+        String pathSrc2 = getClass().getResource("/baseballdatabank-master/core/test_file2.csv").toURI().getRawPath();
+
+        String[] argv2 = {"-appendToFile", pathSrc2, pathDest};
+        shell.run(argv2);
+        shell.run(argv2);
     }
 
     @Test

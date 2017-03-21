@@ -204,3 +204,23 @@ udp_preference_limit=1
 ```
 
 If you see errors related to the missing ```StringUtil.toLowerCase``` try the hadoop2.6 branch as the master is linked to hadoop-2.7.
+
+### Using file encryption
+It is possible to encrypt/decrypt files when uploading/downloading from the datalake. To enable this, add the following properties to `core-site.xml`:
+```xml
+  <!-- This tells the DataLake client if it should encrypt/decrypt files when
+  uploading/downloading. If property is missing, the default value is false. -->
+  <property>
+    <name>fs.fl.impl.shouldUseEncryption</name>
+    <value>true</value>
+  </property>
+  
+  <!-- The location of the AES key. The file should be exactly 16 bytes long.
+  This property is required if fs.fl.impl.shouldUseEncryption is set to true. -->
+  <property>
+    <name>fs.dl.impl.encryptionKeyPath</name>
+    <value>/etc/PUT_YOUR_KEY_PATH_HERE</value>
+  </property>
+```
+By setting `fs.dl.impl.shouldUseEncryption` to true, you should also provide the path to the file containing the AES key in `fs.dl.impl.encryptionKeyPath` (the file should be exactly 16 bytes long). This will enable encrypting or decrypting of files when uploading or appending, or, respectively, downloading them.
+You can easily disable this by setting `fs.dl.impl.shouldUseEncryption` to false.
