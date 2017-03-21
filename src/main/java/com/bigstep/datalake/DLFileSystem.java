@@ -114,7 +114,7 @@ public class DLFileSystem extends FileSystem
     public static final String FS_DL_IMPL_KERBEROS_REALM_CONFIG_NAME = "fs.dl.impl.kerberosRealm";
     public static final String FS_DL_IMPL_DEFAULT_TRANSPORT_SCHEME = "https";
     public static final String FS_DL_IMPL_TRANSPORT_SCHEME_CONFIG_NAME = "fs.dl.impl.transportScheme";
-    public static final String FS_DL_IMPL_SHOULD_USE_ENCRYPTION_CONFIG_NAME = "fs.fl.impl.shouldUseEncryption";
+    public static final String FS_DL_IMPL_SHOULD_USE_ENCRYPTION_CONFIG_NAME = "fs.dl.impl.shouldUseEncryption";
     public static final String FS_DL_IMPL_ENCRYPTION_KEY_PATH_CONFIG_NAME = "fs.dl.impl.encryptionKeyPath";
     private static final String DEFAULT_FILE_PERMISSIONS = "00640";
     private static final String DEFAULT_UMASK = "00007";
