@@ -116,8 +116,10 @@ public class DLFileSystem extends FileSystem
     public static final String FS_DL_IMPL_TRANSPORT_SCHEME_CONFIG_NAME = "fs.dl.impl.transportScheme";
     public static final String FS_DL_IMPL_SHOULD_USE_ENCRYPTION_CONFIG_NAME = "fs.dl.impl.shouldUseEncryption";
     public static final String FS_DL_IMPL_ENCRYPTION_KEY_PATH_CONFIG_NAME = "fs.dl.impl.encryptionKeyPath";
+    public static final String FS_DL_IMPL_DATALAKE_DATANODES_DOMAIN = "fs.dl.impl.datalakeDatanodesDomain";
     private static final String DEFAULT_FILE_PERMISSIONS = "00640";
     private static final String DEFAULT_UMASK = "00007";
+    private static final String DATALAKE_PORT = "14000";
 
     public static final String JCE_ERROR = "Java Cryptography Extension (JCE) Unlimited Strength Jurisdiction Policy Files are not installed.";
 
@@ -136,7 +138,7 @@ public class DLFileSystem extends FileSystem
     private KerberosIdentity kerberosIdentity;
 
 
-    private AuthenticatedURL.Token kerberosTokenCache=new AuthenticatedURL.Token();;
+    private AuthenticatedURL.Token kerberosTokenCache=new AuthenticatedURL.Token();
 
     private URI baseUri;
     private Token<?> delegationToken;
@@ -152,6 +154,7 @@ public class DLFileSystem extends FileSystem
 
     private String transportScheme;
     private String defaultEndpoint;
+
 
     /**
      * Is DatalakeFS enabled in conf? This function always returns true.
@@ -341,6 +344,7 @@ public class DLFileSystem extends FileSystem
      * @return the @see KerberosIdentity after initialisation.
      */
     private KerberosIdentity initialiseKerberosIdentity(Configuration conf) throws IOException {
+
         String kerberosPrincipal = conf.get(FS_DL_IMPL_KERBEROS_PRINCIPAL_CONFIG_NAME);
         if (kerberosPrincipal == null)
             throw new IOException("Datalake initialisation requires a kerberos principal to be configured using the fs.dl.impl.kerberosPrincipal configuration value");
@@ -350,9 +354,8 @@ public class DLFileSystem extends FileSystem
             throw new IOException("Datalake initialisation requires a kerberos keytab to be configured using the fs.dl.impl.kerberosKeytab configuration value");
 
         String kerberosRealm = conf.get(FS_DL_IMPL_KERBEROS_REALM_CONFIG_NAME);
-        if (kerberosKeytab == null)
+        if (kerberosRealm == null)
             throw new IOException("Datalake initialisation requires a kerberos realm to be configured using the fs.dl.impl.kerberosRealm configuration value");
-
 
         KerberosIdentity kerberosIdentity = new KerberosIdentity();
         kerberosIdentity.login(kerberosPrincipal, kerberosKeytab, kerberosRealm);
@@ -382,12 +385,34 @@ public class DLFileSystem extends FileSystem
         }
     }
 
+    private URI selectDatalakeEndpointURI(URI uri, Configuration conf) throws UnknownHostException {
+
+        String dataLakeDatanodesDomain = conf.get(FS_DL_IMPL_DATALAKE_DATANODES_DOMAIN);
+
+        InetAddress addresses[] = InetAddress.getAllByName(dataLakeDatanodesDomain);
+
+        ArrayList<String> datalakeEndpoints = new ArrayList<String>();
+
+        for (InetAddress address : addresses) {
+            datalakeEndpoints.add(address.getCanonicalHostName());
+        }
+
+        int rnd = new Random().nextInt(addresses.length);
+
+        String homeDirectory = conf.get(FS_DL_IMPL_HOME_DIRECTORY);
+
+        return URI.create("dl://" + datalakeEndpoints.get(rnd) + ":"+ DATALAKE_PORT + homeDirectory);
+    }
+
+
     @Override
     public synchronized void initialize(URI uri, Configuration conf
     ) throws IOException {
         super.initialize(uri, conf);
 
-        /** set user pattern based on configuration file */
+        uri = selectDatalakeEndpointURI(uri, conf);
+
+        /* set user pattern based on configuration file */
         UserParam.setUserPattern(conf.get(
                 DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_KEY,
                 DFSConfigKeys.DFS_WEBHDFS_USER_PATTERN_DEFAULT));
