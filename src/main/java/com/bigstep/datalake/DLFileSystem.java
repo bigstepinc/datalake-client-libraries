@@ -318,28 +318,6 @@ public class DLFileSystem extends FileSystem
 
     /**
      * Returns the KerberosIdentity as specified in the configuration. Currently only supports the keytab implementation.
-     * <pre>
-     * {@code
-     * <property>
-     * <name>fs.dl.impl.kerberosPrincipal</name>
-     *  <value>k7@bigstep.io</value>
-     * </property>
-     *
-     * <property>
-     * <name>fs.dl.impl.kerberosKeytab</name>
-     * <value>/Users/alexandrubordei/code/hadoop/hadoop-2.7.2/etc/hadoop/k7.keytab</value>
-     * </property>
-     *
-     * <property>
-     * <name>fs.dl.impl.homeDirectory</name>
-     * <value>/data_lake/dl267</value>
-     * </property>
-     *
-     * <property>
-     * <name>fs.dl.impl.kerberosRealm</name>
-     * <value>bigstep.io</value>
-     * </property>
-     * }</pre>
      * @param conf
      * @return the @see KerberosIdentity after initialisation.
      */
