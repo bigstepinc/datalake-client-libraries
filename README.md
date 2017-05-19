@@ -211,7 +211,7 @@ It is possible to encrypt/decrypt files when uploading/downloading from the data
   <!-- This tells the DataLake client if it should encrypt/decrypt files when
   uploading/downloading. If property is missing, the default value is false. -->
   <property>
-    <name>fs.fl.impl.shouldUseEncryption</name>
+    <name>fs.dl.impl.shouldUseEncryption</name>
     <value>true</value>
   </property>
   
