@@ -61,9 +61,9 @@ public class DLEncryptionUtils {
 
             _isInitialised = true;
         }
-        else {
-            throw new IOException("DLEncryption already initialized.");
-        }
+        //else {
+        //    throw new IOException("DLEncryption already initialized.");
+        //}
     }
 
     public boolean isInitialised() {
