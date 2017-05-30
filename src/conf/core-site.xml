@@ -34,6 +34,12 @@ deployments this is useful as you can use relative paths eg ./bin/dl -ls / -->
     <value>/data_lake/dl_SET_YOUR_DL_HERE</value>
   </property>
 
+
+  <property>
+    <name>fs.dl.impl.defaultEndpoint</name>
+    <value>/data_lake/dl_SET_YOUR_DL_HERE</value>
+  </property>
+
     <!--This is the default permission set for uploaded files. Default value: 00640 -->
   <property>
     <name>fs.dl.impl.defaultFilePermissions</name>
@@ -69,4 +75,10 @@ deployments this is useful as you can use relative paths eg ./bin/dl -ls / -->
     <name>fs.dl.impl.encryptionKeyPath</name>
     <value>/etc/PUT_YOUR_KEY_PATH_HERE</value>
   </property>
+
+  <property>
+    <name>fs.dl.impl.datalakeDatanodesDomain</name>
+    <value>USE_DOWNLOADED_CORE_SITE_FROM_BIGSTEP_DIAGRAM_UI</value>
+  </property>
+
 </configuration>
