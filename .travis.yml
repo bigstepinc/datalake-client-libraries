@@ -10,3 +10,4 @@ deploy:
   skip_cleanup: true
   on:
     repo: bigstepinc/datalake-client-libraries
+    all_branches: true
